@@ -1,0 +1,40 @@
+@import 'frappe-ui/style.css';
+
+@layer components {
+  .prose-f {
+    @apply break-all
+			max-w-none
+			prose
+			prose-code:break-all
+			prose-code:whitespace-pre-wrap
+			prose-img:border
+			prose-img:rounded-lg
+			prose-sm
+			prose-table:table-fixed
+			prose-td:border
+			prose-td:border-outline-gray-2
+			prose-td:p-2
+			prose-td:relative
+			prose-th:bg-surface-gray-2
+			prose-th:border
+			prose-th:border-outline-gray-2
+			prose-th:p-2
+			prose-th:relative;
+  }
+}
+
+/* Custom branding - Override Frappe CRM text to ipshopy */
+#getting-started-wrapper h3:first-of-type,
+#getting-started-wrapper div[class*="font-semibold"]:first-child {
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+
+#getting-started-wrapper h3:first-of-type::after,
+#getting-started-wrapper div[class*="font-semibold"]:first-child::after {
+  content: "Welcome to ipshopy" !important;
+  font-size: 1rem !important;
+  line-height: 1.5rem !important;
+  font-weight: 600 !important;
+  display: block !important;
+}
