@@ -18,11 +18,11 @@
         <Dropdown
           :options="[
             {
-              label: __('Add existing user'),
+              label: __('Add Existing User'),
               onClick: () => (showAddExistingModal = true),
             },
             {
-              label: __('Invite new user'),
+              label: __('Invite New User'),
               onClick: () => (activeSettingsPage = 'Invite User'),
             },
           ]"
@@ -47,12 +47,16 @@
     </div>
 
     <!-- Empty State -->
-    <EmptyState
+    <div
       v-if="!users.loading && users.data?.crmUsers?.length == 1"
-      name="users"
-      description="Add one to get started."
-      icon="user"
-    />
+      class="flex justify-between w-full h-full"
+    >
+      <div
+        class="text-ink-gray-4 border border-dashed rounded w-full flex items-center justify-center"
+      >
+        {{ __('No users found') }}
+      </div>
+    </div>
 
     <!-- Users List -->
     <div
@@ -81,7 +85,7 @@
             { label: __('All'), value: 'All' },
             { label: __('Admin'), value: 'System Manager' },
             { label: __('Manager'), value: 'Sales Manager' },
-            { label: __('Sales user'), value: 'Sales User' },
+            { label: __('Sales User'), value: 'Sales User' },
           ]"
         />
       </div>
@@ -148,7 +152,7 @@
             class="mt-3.5 p-2"
             @click="() => users.next()"
             :loading="users.loading"
-            :label="__('Load more')"
+            :label="__('Load More')"
             icon-left="refresh-cw"
           />
         </div>
@@ -163,7 +167,6 @@
 
 <script setup>
 import AddExistingUserModal from '@/components/Modals/AddExistingUserModal.vue'
-import EmptyState from '@/components/ListViews/EmptyState.vue'
 import { activeSettingsPage } from '@/composables/settings'
 import { usersStore } from '@/stores/users'
 import { DropdownOption } from '@/utils'
@@ -188,7 +191,7 @@ const currentRole = ref('All')
 const roleMap = {
   'System Manager': __('Admin'),
   'Sales Manager': __('Manager'),
-  'Sales User': __('Sales user'),
+  'Sales User': __('Sales User'),
 }
 
 const usersList = computed(() => {
@@ -222,7 +225,7 @@ function getMoreOptions(user) {
       condition: () => !confirmRemove.value,
     },
     {
-      label: __('Confirm remove'),
+      label: __('Confirm Remove'),
       icon: 'trash-2',
       theme: 'red',
       onClick: () => removeUser(user, true),
@@ -258,10 +261,10 @@ function getDropdownOptions(user) {
       condition: () => isManager(),
     },
     {
-      label: __('Sales user'),
+      label: __('Sales User'),
       component: () =>
         DropdownOption({
-          option: __('Sales user'),
+          option: __('Sales User'),
           icon: 'user-check',
           selected: user.role === 'Sales User',
         }),

@@ -118,7 +118,7 @@
         >
           {{ getRow(itemName, titleField).label }}
         </div>
-        <div class="text-ink-gray-4" v-else>{{ __('No title') }}</div>
+        <div class="text-ink-gray-4" v-else>{{ __('No Title') }}</div>
       </div>
     </template>
     <template #fields="{ fieldName, itemName }">
@@ -235,7 +235,7 @@
     v-model="leads.data.page_length_count"
     v-model:list="leads"
     :rows="rows"
-    :columns="columns"
+    :columns="leads.data.columns"
     :options="{
       showTooltip: false,
       resizeColumn: true,
@@ -252,11 +252,19 @@
       (selections) => viewControls.updateSelections(selections)
     "
   />
-  <EmptyState
-    v-else-if="leads.data && !rows.length"
-    name="leads"
-    :icon="LeadsIcon"
-  />
+  <div v-else-if="leads.data" class="flex h-full items-center justify-center">
+    <div
+      class="flex flex-col items-center gap-3 text-xl font-medium text-ink-gray-4"
+    >
+      <LeadsIcon class="h-10 w-10" />
+      <span>{{ __('No {0} Found', [__('Leads')]) }}</span>
+      <Button
+        :label="__('Create')"
+        iconLeft="plus"
+        @click="showLeadModal = true"
+      />
+    </div>
+  </div>
   <LeadModal
     v-if="showLeadModal"
     v-model="showLeadModal"
@@ -291,7 +299,6 @@ import IndicatorIcon from '@/components/Icons/IndicatorIcon.vue'
 import LeadsIcon from '@/components/Icons/LeadsIcon.vue'
 import LayoutHeader from '@/components/LayoutHeader.vue'
 import LeadsListView from '@/components/ListViews/LeadsListView.vue'
-import EmptyState from '@/components/ListViews/EmptyState.vue'
 import KanbanView from '@/components/Kanban/KanbanView.vue'
 import LeadModal from '@/components/Modals/LeadModal.vue'
 import NoteModal from '@/components/Modals/NoteModal.vue'
@@ -309,7 +316,7 @@ import { ref, computed, reactive, h } from 'vue'
 
 const { getFormattedPercent, getFormattedFloat, getFormattedCurrency } =
   getMeta('CRM Lead')
-const { makeCall } = globalStore()
+const store = globalStore()
 const { getUser } = usersStore()
 const { getLeadStatus } = statusesStore()
 
@@ -352,22 +359,6 @@ const rows = computed(() => {
   } else {
     return parseRows(leads.value?.data.data, leads.value.data.columns)
   }
-})
-
-const columns = computed(() => {
-  let _columns = leads.value?.data?.columns || []
-
-  // Set align right for last column
-  if (_columns.length) {
-    _columns = _columns.map((col, index) => {
-      if (index === _columns.length - 1) {
-        return { ...col, align: 'right' }
-      }
-      return col
-    })
-  }
-
-  return _columns
 })
 
 function getGroupedByRows(listRows, groupByField, columns) {
@@ -538,18 +529,18 @@ function actions(itemName) {
   let actions = [
     {
       icon: h(PhoneIcon, { class: 'h-4 w-4' }),
-      label: __('Make a call'),
-      onClick: () => makeCall(mobile_no),
+      label: __('Make a Call'),
+      onClick: () => store.makeCall(mobile_no),
       condition: () => mobile_no && callEnabled.value,
     },
     {
       icon: h(NoteIcon, { class: 'h-4 w-4' }),
-      label: __('New note'),
+      label: __('New Note'),
       onClick: () => showNote(itemName),
     },
     {
       icon: h(TaskIcon, { class: 'h-4 w-4' }),
-      label: __('New task'),
+      label: __('New Task'),
       onClick: () => showTask(itemName),
     },
   ]

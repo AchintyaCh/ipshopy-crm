@@ -4,10 +4,10 @@
       <h3
         class="flex items-center gap-2 text-2xl font-semibold leading-6 text-ink-gray-9"
       >
-        <div>{{ __('Edit grid row fields layout') }}</div>
+        <div>{{ __('Edit Grid Row Fields Layout') }}</div>
         <Badge
           v-if="dirty"
-          :label="__('Not saved')"
+          :label="__('Not Saved')"
           variant="subtle"
           theme="orange"
         />

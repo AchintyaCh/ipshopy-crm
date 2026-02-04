@@ -15,7 +15,7 @@
       </div>
       <div class="flex item-center space-x-2 w-3/12 justify-end">
         <Button
-          :label="__('Send invites')"
+          :label="__('Send Invites')"
           variant="solid"
           :disabled="!invitees.length"
           @click="inviteByEmail.submit()"
@@ -58,7 +58,7 @@
           <div
             class="flex items-center justify-between text-base font-semibold"
           >
-            <div>{{ __('Pending invites') }}</div>
+            <div>{{ __('Pending Invites') }}</div>
           </div>
           <ul class="flex flex-col gap-1">
             <li
@@ -98,7 +98,7 @@
 import { validateEmail, convertArrayToString } from '@/utils'
 import { usersStore } from '@/stores/users'
 import { createListResource, createResource, FormControl } from 'frappe-ui'
-import { useOnboarding, useTelemetry } from 'frappe-ui/frappe'
+import { useOnboarding } from 'frappe-ui/frappe'
 import { ref, computed } from 'vue'
 
 const { updateOnboardingStep } = useOnboarding('frappecrm')
@@ -107,7 +107,6 @@ const { users, isAdmin, isManager } = usersStore()
 const invitees = ref([])
 const role = ref('Sales User')
 const error = ref(null)
-const $telemetry = useTelemetry()
 
 const userExistMessage = computed(() => {
   const inviteesSet = new Set(invitees.value)
@@ -154,14 +153,14 @@ const description = computed(() => {
 
 const roleOptions = computed(() => {
   return [
-    { value: 'Sales User', label: __('Sales user') },
+    { value: 'Sales User', label: __('Sales User') },
     ...(isManager() ? [{ value: 'Sales Manager', label: __('Manager') }] : []),
     ...(isAdmin() ? [{ value: 'System Manager', label: __('Admin') }] : []),
   ]
 })
 
 const roleMap = {
-  'Sales User': __('Sales user'),
+  'Sales User': __('Sales User'),
   'Sales Manager': __('Manager'),
   'System Manager': __('Admin'),
 }
@@ -187,7 +186,6 @@ const inviteByEmail = createResource({
     invitees.value = []
     pendingInvitations.reload()
     updateOnboardingStep('invite_your_team')
-    $telemetry.capture('user_invited', true)
   },
   onError(err) {
     error.value = err?.messages?.[0]

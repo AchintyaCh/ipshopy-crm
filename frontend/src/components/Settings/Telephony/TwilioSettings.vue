@@ -9,4 +9,6 @@
 </template>
 <script setup>
 import SettingsPage from '@/components/Settings/SettingsPage.vue'
+
+defineEmits(['updateStep'])
 </script>

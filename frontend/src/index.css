@@ -22,19 +22,3 @@
 			prose-th:relative;
   }
 }
-
-/* Custom branding - Override Frappe CRM text to ipshopy */
-#getting-started-wrapper h3:first-of-type,
-#getting-started-wrapper div[class*="font-semibold"]:first-child {
-  font-size: 0 !important;
-  line-height: 0 !important;
-}
-
-#getting-started-wrapper h3:first-of-type::after,
-#getting-started-wrapper div[class*="font-semibold"]:first-child::after {
-  content: "Welcome to ipshopy" !important;
-  font-size: 1rem !important;
-  line-height: 1.5rem !important;
-  font-weight: 600 !important;
-  display: block !important;
-}

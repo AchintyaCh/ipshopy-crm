@@ -47,7 +47,7 @@
         :options="options"
         class="form-control"
         v-model="preset"
-        :placeholder="__('Select range')"
+        :placeholder="__('Select Range')"
         :button="{
           label: __(preset),
           class:
@@ -301,6 +301,6 @@ function resetToDefault() {
 }
 
 usePageMeta(() => {
-  return { title: __('CRM dashboard') }
+  return { title: __('CRM Dashboard') }
 })
 </script>

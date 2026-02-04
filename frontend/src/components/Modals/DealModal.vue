@@ -5,7 +5,7 @@
         <div class="mb-5 flex items-center justify-between">
           <div>
             <h3 class="text-2xl font-semibold leading-6 text-ink-gray-9">
-              {{ __('Create deal') }}
+              {{ __('Create Deal') }}
             </h3>
           </div>
           <div class="flex items-center gap-1">
@@ -34,14 +34,14 @@
               v-if="hasOrganizationSections"
               class="flex items-center gap-3 text-sm text-ink-gray-5"
             >
-              <div>{{ __('Choose existing organization') }}</div>
+              <div>{{ __('Choose Existing Organization') }}</div>
               <Switch v-model="chooseExistingOrganization" />
             </div>
             <div
               v-if="hasContactSections"
               class="flex items-center gap-3 text-sm text-ink-gray-5"
             >
-              <div>{{ __('Choose existing contact') }}</div>
+              <div>{{ __('Choose Existing Contact') }}</div>
               <Switch v-model="chooseExistingContact" />
             </div>
           </div>
@@ -85,7 +85,6 @@ import { capture } from '@/telemetry'
 import { Switch, createResource } from 'frappe-ui'
 import { computed, ref, onMounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useTelemetry } from 'frappe-ui/frappe'
 
 const props = defineProps({
   defaults: Object,
@@ -107,7 +106,6 @@ const isDealCreating = ref(false)
 const chooseExistingContact = ref(false)
 const chooseExistingOrganization = ref(false)
 const fieldLayoutRef = ref(null)
-const $telemetry = useTelemetry()
 
 watch(
   [chooseExistingOrganization, chooseExistingContact],
@@ -199,7 +197,7 @@ async function createDeal() {
         if (typeof deal.doc.annual_revenue === 'string') {
           deal.doc.annual_revenue = deal.doc.annual_revenue.replace(/,/g, '')
         } else if (isNaN(deal.doc.annual_revenue)) {
-          error.value = __('Annual revenue should be a number')
+          error.value = __('Annual Revenue should be a number')
           return error.value
         }
       }
@@ -207,11 +205,11 @@ async function createDeal() {
         deal.doc.mobile_no &&
         isNaN(deal.doc.mobile_no.replace(/[-+() ]/g, ''))
       ) {
-        error.value = __('Mobile no should be a number')
+        error.value = __('Mobile No should be a number')
         return error.value
       }
       if (deal.doc.email && !deal.doc.email.includes('@')) {
-        error.value = __('Invalid email address')
+        error.value = __('Invalid Email')
         return error.value
       }
       if (!deal.doc.status) {
@@ -222,7 +220,6 @@ async function createDeal() {
     },
     onSuccess(name) {
       capture('deal_created')
-      $telemetry.capture('deal_created', true)
       isDealCreating.value = false
       show.value = false
       router.push({ name: 'Deal', params: { dealId: name } })

@@ -109,7 +109,7 @@ const { $socket } = globalStore()
 const { mark_as_read, toggle, mark_doc_as_read } = notificationsStore()
 const { handleEventNotification } = useEventNotificationAlert()
 
-const activeTab = ref('all')
+const activeTab = ref('events')
 const tabs = [
   { label: __('All'), value: 'all' },
   { label: __('Events'), value: 'events' },

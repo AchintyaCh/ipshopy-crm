@@ -59,7 +59,7 @@
         variant="ghost"
         class="!h-6.5 !text-ink-gray-5 hover:!text-ink-gray-9"
         @click="addTab"
-        :label="__('Add tab')"
+        :label="__('Add Tab')"
       >
         <template v-slot:[slotName]>
           <FeatherIcon name="plus" class="h-4" />
@@ -169,7 +169,7 @@
                         <Button
                           class="w-full !h-8 !bg-surface-modal"
                           variant="outline"
-                          :label="__('Add field')"
+                          :label="__('Add Field')"
                           iconLeft="plus"
                           @click="togglePopover()"
                         />
@@ -194,11 +194,11 @@
         <Button
           class="w-full h-8"
           variant="subtle"
-          :label="__('Add section')"
+          :label="__('Add Section')"
           iconLeft="plus"
           @click="
             tabs[tabIndex].sections.push({
-              label: __('New section'),
+              label: __('New Section'),
               name: 'section_' + getRandom(),
               opened: true,
               columns: [{ name: 'column_' + getRandom(), fields: [] }],
@@ -290,12 +290,12 @@ const fields = createResource({
 
 function addTab() {
   if (props.tabs.length == 1 && !props.tabs[0].label) {
-    props.tabs[0].label = __('New tab')
+    props.tabs[0].label = __('New Tab')
     return
   }
 
   props.tabs.push({
-    label: __('New tab'),
+    label: __('New Tab'),
     name: 'tab_' + getRandom(),
     sections: [],
   })

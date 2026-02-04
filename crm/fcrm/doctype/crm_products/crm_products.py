@@ -1,3 +1,4 @@
+# Copyright (c) 2025, Frappe Technologies Pvt. Ltd. and contributors
 # For license information, please see license.txt
 
 import frappe
@@ -14,7 +15,6 @@ class CRMProducts(Document):
 		from frappe.types import DF
 
 		amount: DF.Currency
-		autocomplete: DF.Autocomplete | None
 		discount_amount: DF.Currency
 		discount_percentage: DF.Percent
 		net_amount: DF.Currency

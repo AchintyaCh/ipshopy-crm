@@ -1,3 +1,4 @@
+# Copyright (c) 2025, Frappe Technologies Pvt. Ltd. and contributors
 # For license information, please see license.txt
 
 import frappe
@@ -7,23 +8,6 @@ from frappe.model.document import Document
 
 
 class CRMExotelSettings(Document):
-	# begin: auto-generated types
-	# This code is auto-generated. Do not modify anything in this block.
-
-	from typing import TYPE_CHECKING
-
-	if TYPE_CHECKING:
-		from frappe.types import DF
-
-		account_sid: DF.Data | None
-		api_key: DF.Data | None
-		api_token: DF.Password | None
-		enabled: DF.Check
-		record_call: DF.Check
-		subdomain: DF.Data | None
-		webhook_verify_token: DF.Data | None
-	# end: auto-generated types
-
 	def validate(self):
 		self.verify_credentials()
 

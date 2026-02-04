@@ -3,7 +3,7 @@
     <!-- title and desc -->
     <div role="heading" aria-level="1" class="flex flex-col gap-1">
       <h2 class="text-xl font-semibold text-ink-gray-8">
-        {{ __('Setup email') }}
+        {{ __('Setup Email') }}
       </h2>
       <p class="text-sm text-ink-gray-5">
         {{ __('Choose the email service provider you want to configure.') }}
@@ -103,7 +103,6 @@ import {
   incomingOutgoingFields,
 } from './emailConfig'
 import EmailProviderIcon from './EmailProviderIcon.vue'
-import { useTelemetry } from 'frappe-ui/frappe'
 
 const emit = defineEmits()
 
@@ -120,7 +119,6 @@ const state = reactive({
   default_incoming: false,
   default_outgoing: false,
 })
-const $telemetry = useTelemetry()
 
 const selectedService = ref(null)
 const fields = computed(() =>
@@ -154,7 +152,6 @@ function createEmailAccount() {
   if (error.value) return
 
   addEmailRes.submit({ data: state })
-  $telemetry.capture('email_account_created', true)
 }
 </script>
 

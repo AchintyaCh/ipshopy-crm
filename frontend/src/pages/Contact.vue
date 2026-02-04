@@ -97,10 +97,11 @@
               <div class="flex gap-1.5">
                 <Button
                   v-if="callEnabled && contact.doc.mobile_no"
-                  :label="__('Make call')"
+                  :label="__('Make Call')"
                   size="sm"
+                  :loading="store.callLoading"
                   :iconLeft="PhoneIcon"
-                  @click="callEnabled && makeCall(contact.doc.mobile_no)"
+                  @click="handleMakeCall"
                 />
                 <Button
                   v-if="canDelete"
@@ -165,7 +166,7 @@
         >
           <div class="flex flex-col items-center justify-center space-y-3">
             <component :is="tab.icon" class="!h-10 !w-10" />
-            <div>{{ __('No {0} found', [__(tab.label.toLowerCase())]) }}</div>
+            <div>{{ __('No {0} Found', [__(tab.label)]) }}</div>
           </div>
         </div>
       </template>
@@ -227,7 +228,7 @@ import { ref, computed, h, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const { brand } = getSettings()
-const { makeCall, $dialog, $socket } = globalStore()
+const store = globalStore()
 
 const { getUser } = usersStore()
 const { getOrganization } = organizationsStore()
@@ -561,6 +562,44 @@ function openAddressModal(_address) {
   }
 }
 
+function handleMakeCall() {
+  console.log("=" .repeat(80))
+  console.log("[CONTACT PAGE] Make Call Button Clicked")
+  console.log("[CONTACT PAGE] callEnabled:", callEnabled.value)
+  console.log("[CONTACT PAGE] mobile_no:", contact.doc.mobile_no)
+  console.log("[CONTACT PAGE] makeCall function exists:", typeof store.makeCall)
+  console.log("[CONTACT PAGE] makeCall value:", store.makeCall)
+  
+  if (!callEnabled.value) {
+    console.error("[CONTACT PAGE] Call is not enabled!")
+    toast.error(__('Calling feature is not enabled'))
+    return
+  }
+  
+  if (!contact.doc.mobile_no) {
+    console.error("[CONTACT PAGE] No mobile number!")
+    toast.error(__('No phone number set'))
+    return
+  }
+  
+  if (typeof store.makeCall !== 'function') {
+    console.error("[CONTACT PAGE] makeCall is not a function!")
+    console.error("[CONTACT PAGE] makeCall type:", typeof store.makeCall)
+    toast.error(__('Calling feature is not properly configured'))
+    return
+  }
+  
+  console.log("[CONTACT PAGE] Calling makeCall with:", contact.doc.mobile_no)
+  try {
+    store.makeCall(contact.doc.mobile_no)
+    console.log("[CONTACT PAGE] makeCall executed successfully")
+  } catch (err) {
+    console.error("[CONTACT PAGE] Error calling makeCall:", err)
+    toast.error(__('Failed to initiate call: {0}', [err.message]))
+  }
+  console.log("=" .repeat(80))
+}
+
 // Setup custom actions from Form Scripts
 watch(
   () => contact.doc,
@@ -568,8 +607,8 @@ watch(
     if (scripts.data?.length) {
       let s = await setupCustomizations(scripts.data, {
         doc: _doc,
-        $dialog,
-        $socket,
+        $dialog: store.$dialog,
+        $socket: store.$socket,
         router,
         toast,
         updateField: contact.setValue.submit,

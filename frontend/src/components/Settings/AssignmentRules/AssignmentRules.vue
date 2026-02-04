@@ -25,7 +25,7 @@
     </div>
 
     <!-- Assignment rules list -->
-    <div class="flex h-full overflow-y-auto">
+    <div class="overflow-y-auto">
       <AssignmentRulesList />
     </div>
   </div>

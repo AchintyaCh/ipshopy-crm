@@ -35,7 +35,7 @@
         </template>
       </Dropdown>
       <Button
-        :label="__('Convert to deal')"
+        :label="__('Convert to Deal')"
         variant="solid"
         @click="showConvertToDealModal = true"
       />
@@ -125,11 +125,12 @@
                 <Button
                   v-if="callEnabled"
                   :tooltip="__('Make a call')"
+                  :loading="store.callLoading"
                   :icon="PhoneIcon"
                   @click="
                     () =>
                       doc.mobile_no
-                        ? makeCall(doc.mobile_no)
+                        ? store.makeCall(doc.mobile_no)
                         : toast.error(__('No phone number set'))
                   "
                 />
@@ -276,7 +277,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useActiveTabManager } from '@/composables/useActiveTabManager'
 
 const { brand } = getSettings()
-const { $dialog, $socket, makeCall } = globalStore()
+const store = globalStore()
 const { statusOptions, getLeadStatus } = statusesStore()
 const { doctypeMeta } = getMeta('CRM Lead')
 

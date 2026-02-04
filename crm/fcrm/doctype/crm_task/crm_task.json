@@ -37,7 +37,7 @@
   {
    "fieldname": "start_date",
    "fieldtype": "Date",
-   "label": "Start date"
+   "label": "Start Date"
   },
   {
    "fieldname": "column_break_cqua",
@@ -46,7 +46,7 @@
   {
    "fieldname": "assigned_to",
    "fieldtype": "Link",
-   "label": "Assigned to",
+   "label": "Assigned To",
    "options": "User"
   },
   {
@@ -60,7 +60,7 @@
   {
    "fieldname": "due_date",
    "fieldtype": "Datetime",
-   "label": "Due date"
+   "label": "Due Date"
   },
   {
    "fieldname": "section_break_bzhd",
@@ -75,20 +75,20 @@
    "default": "CRM Lead",
    "fieldname": "reference_doctype",
    "fieldtype": "Link",
-   "label": "Reference document type",
+   "label": "Reference Document Type",
    "options": "DocType"
   },
   {
    "fieldname": "reference_docname",
    "fieldtype": "Dynamic Link",
-   "label": "Reference doc",
+   "label": "Reference Doc",
    "options": "reference_doctype"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-01-22 14:12:06.436396",
- "modified_by": "shariq@frappe.io",
+ "modified": "2024-02-08 12:04:00.955984",
+ "modified_by": "Administrator",
  "module": "FCRM",
  "name": "CRM Task",
  "naming_rule": "Autoincrement",
@@ -119,7 +119,6 @@
    "write": 1
   }
  ],
- "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []

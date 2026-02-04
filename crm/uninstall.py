@@ -1,3 +1,4 @@
+# Copyright (c) 2022, Frappe Technologies Pvt. Ltd. and Contributors
 # MIT License. See license.txt
 import click
 import frappe

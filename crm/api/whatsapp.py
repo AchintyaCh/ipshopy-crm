@@ -60,13 +60,6 @@ def notify_agent(doc):
 
 @frappe.whitelist()
 def is_whatsapp_enabled():
-	# Check if Interakt integration is enabled
-	if frappe.db.exists("DocType", "CRM Interakt Settings"):
-		interakt_enabled = frappe.db.get_single_value("CRM Interakt Settings", "enabled")
-		if interakt_enabled:
-			return True
-	
-	# Check Frappe WhatsApp integration
 	if not frappe.db.exists("DocType", "WhatsApp Settings"):
 		return False
 	default_outgoing = frappe.get_cached_value(
@@ -87,20 +80,11 @@ def is_whatsapp_installed():
 
 @frappe.whitelist()
 def get_whatsapp_messages(reference_doctype, reference_name):
-	# Check if Interakt integration is enabled
-	interakt_enabled = frappe.db.get_single_value("CRM Interakt Settings", "enabled")
-	if interakt_enabled:
-		# Use Interakt integration
-		from crm.integrations.interakt.api import get_whatsapp_messages as get_interakt_messages
-		messages = get_interakt_messages(reference_doctype, reference_name)
-		frappe.logger().info(f"get_whatsapp_messages returning {len(messages)} messages for {reference_doctype} {reference_name}")
-		return messages
-	
 	# twilio integration app is not compatible with crm app
 	# crm has its own twilio integration in built
 	if "twilio_integration" in frappe.get_installed_apps():
 		return []
-	if not frappe.db.exists("DocType", "CRM WhatsApp Message"):
+	if not frappe.db.exists("DocType", "WhatsApp Message"):
 		return []
 	messages = []
 
@@ -108,7 +92,7 @@ def get_whatsapp_messages(reference_doctype, reference_name):
 		lead = frappe.db.get_value(reference_doctype, reference_name, "lead")
 		if lead:
 			messages = frappe.get_all(
-				"CRM WhatsApp Message",
+				"WhatsApp Message",
 				filters={
 					"reference_doctype": "CRM Lead",
 					"reference_name": lead,
@@ -137,7 +121,7 @@ def get_whatsapp_messages(reference_doctype, reference_name):
 			)
 
 	messages += frappe.get_all(
-		"CRM WhatsApp Message",
+		"WhatsApp Message",
 		filters={
 			"reference_doctype": reference_doctype,
 			"reference_name": reference_name,
@@ -242,22 +226,6 @@ def create_whatsapp_message(
 	reply_to,
 	content_type="text",
 ):
-	# Check if Interakt integration is enabled
-	interakt_enabled = frappe.db.get_single_value("CRM Interakt Settings", "enabled")
-	if interakt_enabled:
-		# Use Interakt integration for text messages
-		from crm.integrations.interakt.api import send_text_message_to_lead
-		result = send_text_message_to_lead(
-			reference_doctype=reference_doctype,
-			reference_docname=reference_name,
-			message_text=message,
-		)
-		if result.get("success"):
-			return result.get("message_id")
-		else:
-			frappe.throw(_(result.get("error", "Failed to send message")))
-	
-	# Fallback to Frappe WhatsApp integration
 	doc = frappe.new_doc("WhatsApp Message")
 
 	if reply_to:

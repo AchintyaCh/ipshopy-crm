@@ -43,13 +43,13 @@
     </div>
   </div>
   <Dialog
-    :options="{ title: __('Duplicate assignment rule') }"
+    :options="{ title: __('Duplicate Assignment Rule') }"
     v-model="duplicateDialog.show"
   >
     <template #body-content>
       <div class="flex flex-col gap-4">
         <FormControl
-          :label="__('New assignment rule name')"
+          :label="__('New Assignment Rule Name')"
           type="text"
           v-model="duplicateDialog.name"
         />
@@ -75,6 +75,7 @@ import {
   Dialog,
   Dropdown,
   FormControl,
+  Select,
   Switch,
   toast,
 } from 'frappe-ui'
@@ -143,7 +144,7 @@ const dropdownOptions = [
     condition: () => !isConfirmingDelete.value,
   },
   {
-    label: __('Confirm delete'),
+    label: __('Confirm Delete'),
     icon: 'trash-2',
     theme: 'red',
     onClick: () => deleteAssignmentRule(),

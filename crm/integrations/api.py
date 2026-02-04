@@ -9,10 +9,12 @@ from crm.utils import are_same_phone_number, parse_phone_number
 def is_call_integration_enabled():
 	twilio_enabled = frappe.db.get_single_value("CRM Twilio Settings", "enabled")
 	exotel_enabled = frappe.db.get_single_value("CRM Exotel Settings", "enabled")
+	tata_tele_enabled = frappe.db.get_single_value("CRM Tata Tele Settings", "enabled")
 
 	return {
 		"twilio_enabled": twilio_enabled,
 		"exotel_enabled": exotel_enabled,
+		"tata_tele_enabled": tata_tele_enabled,
 		"default_calling_medium": get_user_default_calling_medium(),
 	}
 
@@ -200,3 +202,46 @@ def get_contact(phone_number, country="IN", exact_match=False):
 		return contacts[0]
 
 	return {"mobile_no": phone_number}
+
+@frappe.whitelist()
+def get_tata_tele_call_logs(filters=None, order_by="modified", page_length=None):
+	"""
+	Get call logs filtered by Tata Tele telephony medium.
+	
+	Args:
+		filters: Optional dict of additional filters
+		order_by: Field to order by (default: modified)
+		page_length: Number of records to fetch
+	
+	Returns:
+		list: List of call logs from Tata Tele
+	"""
+	CallLog = frappe.qb.DocType("CRM Call Log")
+	
+	query = frappe.qb.from_(CallLog).select("*").where(
+		CallLog.telephony_medium == "Tata Tele"
+	)
+	
+	# Apply additional filters if provided
+	if filters:
+		if isinstance(filters, str):
+			import json
+			filters = json.loads(filters)
+		
+		for field, value in filters.items():
+			if value:
+				query = query.where(CallLog[field] == value)
+	
+	# Order by specified field
+	if order_by == "modified":
+		query = query.orderby(CallLog.modified, order=Order.desc)
+	elif order_by == "creation":
+		query = query.orderby(CallLog.creation, order=Order.desc)
+	else:
+		query = query.orderby(CallLog[order_by], order=Order.desc)
+	
+	# Limit results if page_length specified
+	if page_length:
+		query = query.limit(page_length)
+	
+	return query.run(as_dict=True)

@@ -1,5 +1,5 @@
 app_name = "crm"
-app_title = "ipshopy"
+app_title = "Frappe CRM"
 app_publisher = "Frappe Technologies Pvt. Ltd."
 app_description = "Kick-ass Open Source CRM"
 app_email = "shariq@frappe.io"
@@ -151,7 +151,7 @@ doc_events = {
 	"Comment": {
 		"on_update": ["crm.api.comment.on_update"],
 	},
-	"CRM WhatsApp Message": {
+	"WhatsApp Message": {
 		"validate": ["crm.api.whatsapp.validate"],
 		"on_update": ["crm.api.whatsapp.on_update"],
 	},
@@ -159,9 +159,6 @@ doc_events = {
 		"on_update": [
 			"crm.fcrm.doctype.erpnext_crm_settings.erpnext_crm_settings.create_customer_in_erpnext"
 		],
-	},
-	"CRM Lead": {
-		"after_insert": ["crm.integrations.interakt.api.send_welcome_message_to_lead_hook"],
 	},
 	"User": {
 		"before_validate": ["crm.api.demo.validate_user"],

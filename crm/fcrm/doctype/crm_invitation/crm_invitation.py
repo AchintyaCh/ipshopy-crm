@@ -1,3 +1,4 @@
+# Copyright (c) 2024, Frappe Technologies Pvt. Ltd. and contributors
 # For license information, please see license.txt
 
 import frappe
@@ -5,23 +6,6 @@ from frappe.model.document import Document
 
 
 class CRMInvitation(Document):
-	# begin: auto-generated types
-	# This code is auto-generated. Do not modify anything in this block.
-
-	from typing import TYPE_CHECKING
-
-	if TYPE_CHECKING:
-		from frappe.types import DF
-
-		accepted_at: DF.Datetime | None
-		email: DF.Data
-		email_sent_at: DF.Datetime | None
-		invited_by: DF.Link | None
-		key: DF.Data | None
-		role: DF.Literal["", "Sales User", "Sales Manager", "System Manager"]
-		status: DF.Literal["", "Pending", "Accepted", "Expired"]
-	# end: auto-generated types
-
 	def before_insert(self):
 		frappe.utils.validate_email_address(self.email, True)
 
@@ -37,7 +21,7 @@ class CRMInvitation(Document):
 		if frappe.local.dev_server:
 			print(f"Invite link for {self.email}: {invite_link}")
 
-		title = "ipshopy"
+		title = "Frappe CRM"
 		template = "crm_invitation"
 
 		frappe.sendmail(

@@ -70,10 +70,11 @@
               <div class="flex items-center gap-1.5">
                 <Button
                   v-if="callEnabled && contact.doc.mobile_no"
-                  :label="__('Make a call')"
+                  :label="__('Make Call')"
                   size="sm"
+                  :loading="store.callLoading"
                   :iconLeft="PhoneIcon"
-                  @click="callEnabled && makeCall(contact.doc.mobile_no)"
+                  @click="callEnabled && store.makeCall(contact.doc.mobile_no)"
                 />
                 <Button
                   v-if="canDelete"
@@ -150,7 +151,7 @@
         >
           <div class="flex flex-col items-center justify-center space-y-3">
             <component :is="tab.icon" class="!h-10 !w-10" />
-            <div>{{ __('No {0} found', [__(tab.label.toLowerCase())]) }}</div>
+            <div>{{ __('No {0} Found', [__(tab.label)]) }}</div>
           </div>
         </div>
       </template>
@@ -193,7 +194,7 @@ import { ref, computed, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const { brand } = getSettings()
-const { $dialog, makeCall } = globalStore()
+const store = globalStore()
 
 const { getUser } = usersStore()
 const { getOrganization } = organizationsStore()

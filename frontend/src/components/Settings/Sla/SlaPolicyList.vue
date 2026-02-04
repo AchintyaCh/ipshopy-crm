@@ -1,6 +1,6 @@
 <template>
   <SettingsLayoutBase
-    :title="__('SLA policies')"
+    :title="__('SLA Policies')"
     :description="__('Manage your service level agreement policies')"
   >
     <template #header-actions>
@@ -45,15 +45,33 @@
         <LoadingIndicator class="w-4" />
       </div>
       <div v-else class="h-full">
-        <EmptyState
+        <div
           v-if="
             !slaPolicyListResource.list.loading &&
             !slaPolicyListResource.list.data?.length
           "
-          title="No SLA found"
-          description="Add one to get started."
-          :icon="ShieldCheck"
-        />
+          class="flex flex-col items-center justify-center gap-4 h-full"
+        >
+          <div
+            class="p-4 size-14.5 rounded-full bg-surface-gray-2 flex justify-center items-center"
+          >
+            <ShieldCheck class="size-6 text-ink-gray-6" />
+          </div>
+          <div class="flex flex-col items-center gap-1">
+            <div class="text-base font-medium text-ink-gray-6">
+              {{ __('No SLA found') }}
+            </div>
+            <div class="text-p-sm text-ink-gray-5 max-w-60 text-center">
+              {{ __('Add one to get started.') }}
+            </div>
+          </div>
+          <Button
+            :label="__('New')"
+            variant="outline"
+            icon-left="plus"
+            @click="createNewSlaPolicy()"
+          />
+        </div>
         <div v-else class="-ml-2">
           <div
             class="grid grid-cols-7 items-center gap-3 text-sm text-gray-600 ml-2"
@@ -108,13 +126,13 @@
               class="mx-2 border-outline-gray-2"
             />
             <Dialog
-              :options="{ title: __('Duplicate SLA policy') }"
+              :options="{ title: __('Duplicate SLA Policy') }"
               v-model="duplicateDialog.show"
             >
               <template #body-content>
                 <div class="flex flex-col gap-4">
                   <FormControl
-                    :label="__('New SLA policy name')"
+                    :label="__('New SLA Policy Name')"
                     type="text"
                     v-model="duplicateDialog.name"
                     maxlength="100"
@@ -144,9 +162,6 @@
 </template>
 
 <script setup>
-import SettingsLayoutBase from '@/components/Layouts/SettingsLayoutBase.vue'
-import EmptyState from '@/components/ListViews/EmptyState.vue'
-import ShieldCheck from '~icons/lucide/shield-check'
 import {
   Badge,
   Button,
@@ -158,9 +173,11 @@ import {
   Switch,
   toast,
 } from 'frappe-ui'
-import { ConfirmDelete } from '@/utils'
-import { resetSlaData } from './utils'
+import SettingsLayoutBase from '../../Layouts/SettingsLayoutBase.vue'
 import { inject, ref, watch } from 'vue'
+import ShieldCheck from '~icons/lucide/shield-check'
+import { ConfirmDelete } from '../../../utils'
+import { resetSlaData } from './utils'
 
 const slaPolicyListResource = inject('slaPolicyListResource')
 const updateStep = inject('updateStep')

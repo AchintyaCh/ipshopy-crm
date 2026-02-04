@@ -94,7 +94,7 @@ const { document: callLog, triggerOnBeforeCreate } = useDocument(
 )
 
 const dialogOptions = computed(() => {
-  let title = !editMode.value ? __('Log a call') : __('Edit call log')
+  let title = !editMode.value ? __('New Call Log') : __('Edit Call Log')
   let size = 'xl'
   let actions = [
     {

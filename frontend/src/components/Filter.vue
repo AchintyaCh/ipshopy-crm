@@ -18,7 +18,7 @@
         </Button>
         <Button
           v-if="filters?.size"
-          :tooltip="__('Clear all filter')"
+          :tooltip="__('Clear all Filter')"
           class="rounded-l-none border-l"
           icon="x"
           @click.stop="clearfilter(close)"
@@ -54,7 +54,7 @@
                   :value="f.field.fieldname"
                   :options="filterableFields.data"
                   @change="(e) => updateFilter(e, i)"
-                  :placeholder="__('First name')"
+                  :placeholder="__('First Name')"
                 />
               </div>
               <div id="operator">
@@ -85,7 +85,7 @@
                     :value="f.field.fieldname"
                     :options="filterableFields.data"
                     @change="(e) => updateFilter(e, i)"
-                    :placeholder="__('First name')"
+                    :placeholder="__('First Name')"
                   />
                 </div>
                 <div id="operator">
@@ -133,7 +133,7 @@
                 <Button
                   class="!text-ink-gray-5"
                   variant="ghost"
-                  :label="__('Add filter')"
+                  :label="__('Add Filter')"
                   iconLeft="plus"
                   @click="togglePopover()"
                 />
@@ -143,7 +143,7 @@
               v-if="filters?.size"
               class="!text-ink-gray-5"
               variant="ghost"
-              :label="__('Clear all filter')"
+              :label="__('Clear all Filter')"
               @click="clearfilter(close)"
             />
           </div>
@@ -265,11 +265,11 @@ function getOperators(fieldtype, fieldname) {
     options.push(
       ...[
         { label: __('Equals'), value: 'equals' },
-        { label: __('Not equals'), value: 'not equals' },
+        { label: __('Not Equals'), value: 'not equals' },
         { label: __('Like'), value: 'like' },
-        { label: __('Not like'), value: 'not like' },
+        { label: __('Not Like'), value: 'not like' },
         { label: __('In'), value: 'in' },
-        { label: __('Not in'), value: 'not in' },
+        { label: __('Not In'), value: 'not in' },
         { label: __('Is'), value: 'is' },
       ],
     )
@@ -278,7 +278,7 @@ function getOperators(fieldtype, fieldname) {
     // TODO: make equals and not equals work
     options = [
       { label: __('Like'), value: 'like' },
-      { label: __('Not like'), value: 'not like' },
+      { label: __('Not Like'), value: 'not like' },
       { label: __('Is'), value: 'is' },
     ]
   }
@@ -286,11 +286,11 @@ function getOperators(fieldtype, fieldname) {
     options.push(
       ...[
         { label: __('Equals'), value: 'equals' },
-        { label: __('Not equals'), value: 'not equals' },
+        { label: __('Not Equals'), value: 'not equals' },
         { label: __('Like'), value: 'like' },
-        { label: __('Not like'), value: 'not like' },
+        { label: __('Not Like'), value: 'not like' },
         { label: __('In'), value: 'in' },
-        { label: __('Not in'), value: 'not in' },
+        { label: __('Not In'), value: 'not in' },
         { label: __('Is'), value: 'is' },
         { label: __('<'), value: '<' },
         { label: __('>'), value: '>' },
@@ -303,9 +303,9 @@ function getOperators(fieldtype, fieldname) {
     options.push(
       ...[
         { label: __('Equals'), value: 'equals' },
-        { label: __('Not equals'), value: 'not equals' },
+        { label: __('Not Equals'), value: 'not equals' },
         { label: __('In'), value: 'in' },
-        { label: __('Not in'), value: 'not in' },
+        { label: __('Not In'), value: 'not in' },
         { label: __('Is'), value: 'is' },
       ],
     )
@@ -314,11 +314,11 @@ function getOperators(fieldtype, fieldname) {
     options.push(
       ...[
         { label: __('Equals'), value: 'equals' },
-        { label: __('Not equals'), value: 'not equals' },
+        { label: __('Not Equals'), value: 'not equals' },
         { label: __('Like'), value: 'like' },
-        { label: __('Not like'), value: 'not like' },
+        { label: __('Not Like'), value: 'not like' },
         { label: __('In'), value: 'in' },
-        { label: __('Not in'), value: 'not in' },
+        { label: __('Not In'), value: 'not in' },
         { label: __('Is'), value: 'is' },
       ],
     )
@@ -330,9 +330,9 @@ function getOperators(fieldtype, fieldname) {
     options.push(
       ...[
         { label: __('Like'), value: 'like' },
-        { label: __('Not like'), value: 'not like' },
+        { label: __('Not Like'), value: 'not like' },
         { label: __('In'), value: 'in' },
-        { label: __('Not in'), value: 'not in' },
+        { label: __('Not In'), value: 'not in' },
         { label: __('Is'), value: 'is' },
       ],
     )
@@ -341,7 +341,7 @@ function getOperators(fieldtype, fieldname) {
     options.push(
       ...[
         { label: __('Equals'), value: 'equals' },
-        { label: __('Not equals'), value: 'not equals' },
+        { label: __('Not Equals'), value: 'not equals' },
         { label: __('Is'), value: 'is' },
         { label: __('>'), value: '>' },
         { label: __('<'), value: '<' },
@@ -606,23 +606,23 @@ const oppositeOperatorMap = {
 
 const timespanOptions = [
   {
-    label: __('Last week'),
+    label: __('Last Week'),
     value: 'last week',
   },
   {
-    label: __('Last month'),
+    label: __('Last Month'),
     value: 'last month',
   },
   {
-    label: __('Last quarter'),
+    label: __('Last Quarter'),
     value: 'last quarter',
   },
   {
-    label: __('Last 6 months'),
+    label: __('Last 6 Months'),
     value: 'last 6 months',
   },
   {
-    label: __('Last year'),
+    label: __('Last Year'),
     value: 'last year',
   },
   {
@@ -638,39 +638,39 @@ const timespanOptions = [
     value: 'tomorrow',
   },
   {
-    label: __('This week'),
+    label: __('This Week'),
     value: 'this week',
   },
   {
-    label: __('This month'),
+    label: __('This Month'),
     value: 'this month',
   },
   {
-    label: __('This quarter'),
+    label: __('This Quarter'),
     value: 'this quarter',
   },
   {
-    label: __('This year'),
+    label: __('This Year'),
     value: 'this year',
   },
   {
-    label: __('Next week'),
+    label: __('Next Week'),
     value: 'next week',
   },
   {
-    label: __('Next month'),
+    label: __('Next Month'),
     value: 'next month',
   },
   {
-    label: __('Next quarter'),
+    label: __('Next Quarter'),
     value: 'next quarter',
   },
   {
-    label: __('Next 6 months'),
+    label: __('Next 6 Months'),
     value: 'next 6 months',
   },
   {
-    label: __('Next year'),
+    label: __('Next Year'),
     value: 'next year',
   },
 ]

@@ -373,13 +373,39 @@
         @afterSave="(data) => emit('afterSave', data)"
       />
     </div>
-    <EmptyState
+    <div
       v-else
-      :title="emptyText"
-      :description="emptyTextDescription"
-      :icon="emptyTextIcon"
-      :top="top"
-    />
+      class="flex flex-1 flex-col items-center justify-center gap-3 text-xl font-medium text-ink-gray-4"
+    >
+      <component :is="emptyTextIcon" class="h-10 w-10" />
+      <span>{{ __(emptyText) }}</span>
+      <MultiActionButton v-if="title == 'Calls'" :options="callActions" />
+      <Button
+        v-else-if="title == 'Notes'"
+        :label="__('Create Note')"
+        @click="modalRef.showNote()"
+      />
+      <Button
+        v-else-if="title == 'Emails'"
+        :label="__('New Email')"
+        @click="emailBox.show = true"
+      />
+      <Button
+        v-else-if="title == 'Comments'"
+        :label="__('New Comment')"
+        @click="emailBox.showComment = true"
+      />
+      <Button
+        v-else-if="title == 'Tasks'"
+        :label="__('Create Task')"
+        @click="modalRef.showTask()"
+      />
+      <Button
+        v-else-if="title == 'Attachments'"
+        :label="__('Upload Attachment')"
+        @click="showFilesUploader = true"
+      />
+    </div>
   </FadedScrollableDiv>
   <div>
     <CommunicationArea
@@ -435,7 +461,7 @@ import AttachmentArea from '@/components/Activities/AttachmentArea.vue'
 import DataFields from '@/components/Activities/DataFields.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import ActivityIcon from '@/components/Icons/ActivityIcon.vue'
-import EmailIcon from '@/components/Icons/EmailIcon.vue'
+import Email2Icon from '@/components/Icons/Email2Icon.vue'
 import DetailsIcon from '@/components/Icons/DetailsIcon.vue'
 import CalendarIcon from '@/components/Icons/CalendarIcon.vue'
 import PhoneIcon from '@/components/Icons/PhoneIcon.vue'
@@ -447,7 +473,7 @@ import EventArea from '@/components/Activities/EventArea.vue'
 import WhatsAppArea from '@/components/Activities/WhatsAppArea.vue'
 import WhatsAppBox from '@/components/Activities/WhatsAppBox.vue'
 import LoadingIndicator from '@/components/Icons/LoadingIndicator.vue'
-import EmptyState from '@/components/ListViews/EmptyState.vue'
+import MultiActionButton from '@/components/MultiActionButton.vue'
 import LeadsIcon from '@/components/Icons/LeadsIcon.vue'
 import DealsIcon from '@/components/Icons/DealsIcon.vue'
 import DotIcon from '@/components/Icons/DotIcon.vue'
@@ -546,13 +572,7 @@ const whatsappMessages = createResource({
   },
   auto: whatsappEnabled.value,
   transform: (data) => sortByCreation(data),
-  onSuccess: () => {
-    console.log('WhatsApp Messages Loaded Successfully:', whatsappMessages.data?.length)
-    nextTick(() => scroll())
-  },
-  onError: (error) => {
-    console.error('WhatsApp Messages Load Error:', error)
-  }
+  onSuccess: () => nextTick(() => scroll()),
 })
 
 onBeforeUnmount(() => {
@@ -561,27 +581,11 @@ onBeforeUnmount(() => {
 
 onMounted(() => {
   $socket.on('whatsapp_message', (data) => {
-    console.log('WhatsApp Socket Event Received:', data) // Debug log
     if (
       data.reference_doctype === props.doctype &&
       data.reference_name === props.docname
     ) {
-      if (data.message_data) {
-        // Check for duplicates using message_id (more reliable than name for optimistic updates)
-        const exists = whatsappMessages.data.find(
-          (m) => m.message_id === data.message_data.message_id
-        )
-        if (!exists) {
-          // Ensure name exists for Vue key
-          if (!data.message_data.name) {
-             data.message_data.name = data.message_data.message_id
-          }
-          whatsappMessages.data.push(data.message_data)
-          nextTick(() => scroll())
-        }
-      } else {
-        whatsappMessages.reload()
-      }
+      whatsappMessages.reload()
     }
   })
 
@@ -591,24 +595,6 @@ onMounted(() => {
     if (!tabNames?.includes(hash)) {
       scroll(hash)
     }
-  })
-  
-  // Polling fallback for when sockets are broken
-  const pollingInterval = setInterval(() => {
-	if (whatsappEnabled.value && title.value === 'WhatsApp') {
-        // Double check: use both resource reload AND a manual fetch for robustness
-		whatsappMessages.reload()
-        
-        // Manual check for received messages if resource data is stuck
-        if (whatsappMessages.data?.length === 0) {
-             console.log('Resource empty, forcing manual fetch...')
-             whatsappMessages.reload()
-        }
-	}
-  }, 5000)
-  
-  onBeforeUnmount(() => {
-    clearInterval(pollingInterval)
   })
 })
 
@@ -714,65 +700,32 @@ function update_activities_details(activity) {
   }
 }
 
-const top = computed(() => {
-  if (['Activity', 'Emails', 'Comments'].includes(title.value)) {
-    return '32.3%'
-  }
-  return '30%'
-})
-
 const emptyText = computed(() => {
-  let text = 'No activities found'
+  let text = 'No Activities'
   if (title.value == 'Emails') {
-    text = 'No emails found'
+    text = 'No Email Communications'
   } else if (title.value == 'Comments') {
-    text = 'No comments found'
+    text = 'No Comments'
   } else if (title.value == 'Data') {
-    text = 'No data fields added yet'
+    text = 'No Data'
   } else if (title.value == 'Calls') {
-    text = 'No call history'
+    text = 'No Call Logs'
   } else if (title.value == 'Notes') {
-    text = 'No notes found'
+    text = 'No Notes'
   } else if (title.value == 'Tasks') {
-    text = 'No tasks found'
+    text = 'No Tasks'
   } else if (title.value == 'Attachments') {
-    text = 'No attachments found'
+    text = 'No Attachments'
   } else if (title.value == 'WhatsApp') {
-    text = 'No WhatsApp messages found'
+    text = 'No WhatsApp Messages'
   }
   return text
-})
-
-const emptyTextDescription = computed(() => {
-  let description =
-    'There are no activities to display here. Go ahead and make some changes.'
-  if (title.value == 'Emails') {
-    description =
-      'No emails found in your inbox. new messages will appear here soon.'
-  } else if (title.value == 'Comments') {
-    description = 'No comments yet. Be the first to add one.'
-  } else if (title.value == 'Data') {
-    description = 'No data fields have been added yet.'
-  } else if (title.value == 'Calls') {
-    description = 'No recent calls to display. Log a call or call someone now!'
-  } else if (title.value == 'Notes') {
-    description = 'Nothing here for now. add a note to keep track of things.'
-  } else if (title.value == 'Tasks') {
-    description =
-      'Nothing to do at the moment. start organizing by adding one here.'
-  } else if (title.value == 'Attachments') {
-    description =
-      'No files have been attached yet. Upload files to see them here.'
-  } else if (title.value == 'WhatsApp') {
-    description = 'No WhatsApp messages yet. Start a conversation now!'
-  }
-  return description
 })
 
 const emptyTextIcon = computed(() => {
   let icon = ActivityIcon
   if (title.value == 'Emails') {
-    icon = EmailIcon
+    icon = Email2Icon
   } else if (title.value == 'Comments') {
     icon = CommentIcon
   } else if (title.value == 'Data') {
@@ -850,6 +803,24 @@ function scroll(hash) {
     }
   }, 500)
 }
+
+const callActions = computed(() => {
+  let actions = [
+    {
+      label: __('Log a Call'),
+      onClick: () => modalRef.value.createCallLog(),
+    },
+    {
+      label: __('Make a Call'),
+      onClick: () => makeCall(doc.value.mobile_no),
+      condition: () => callEnabled.value,
+    },
+  ]
+
+  return actions.filter((action) =>
+    action.condition ? action.condition() : true,
+  )
+})
 
 defineExpose({ emailBox, all_activities, changeTabTo })
 </script>

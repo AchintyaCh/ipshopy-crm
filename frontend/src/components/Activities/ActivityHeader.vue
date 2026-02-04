@@ -9,14 +9,14 @@
     <Button
       v-if="title == 'Emails'"
       variant="solid"
-      :label="__('New email')"
+      :label="__('New Email')"
       iconLeft="plus"
       @click="emailBox.show = true"
     />
     <Button
       v-else-if="title == 'Comments'"
       variant="solid"
-      :label="__('New comment')"
+      :label="__('New Comment')"
       iconLeft="plus"
       @click="emailBox.showComment = true"
     />
@@ -38,32 +38,32 @@
     <Button
       v-else-if="title == 'Notes'"
       variant="solid"
-      :label="__('New note')"
+      :label="__('New Note')"
       iconLeft="plus"
       @click="modalRef.showNote()"
     />
     <Button
       v-else-if="title == 'Tasks'"
       variant="solid"
-      :label="__('New task')"
+      :label="__('New Task')"
       iconLeft="plus"
       @click="modalRef.showTask()"
     />
     <Button
       v-else-if="title == 'Attachments'"
       variant="solid"
-      :label="__('Upload attachment')"
+      :label="__('Upload Attachment')"
       iconLeft="plus"
       @click="showFilesUploader = true"
     />
     <div class="flex gap-2 shrink-0" v-else-if="title == 'WhatsApp'">
       <Button
-        :label="__('Send template')"
+        :label="__('Send Template')"
         @click="showWhatsappTemplates = true"
       />
       <Button
         variant="solid"
-        :label="__('New message')"
+        :label="__('New Message')"
         iconLeft="plus"
         @click="whatsappBox.show()"
       />
@@ -105,7 +105,7 @@ const props = defineProps({
   whatsappBox: Object,
 })
 
-const { makeCall } = globalStore()
+const store = globalStore()
 
 const tabIndex = defineModel()
 const showWhatsappTemplates = defineModel('showWhatsappTemplates')
@@ -115,12 +115,12 @@ const defaultActions = computed(() => {
   let actions = [
     {
       icon: h(Email2Icon, { class: 'h-4 w-4' }),
-      label: __('New email'),
+      label: __('New Email'),
       onClick: () => (props.emailBox.show = true),
     },
     {
       icon: h(CommentIcon, { class: 'h-4 w-4' }),
-      label: __('New comment'),
+      label: __('New Comment'),
       onClick: () => (props.emailBox.showComment = true),
     },
     {
@@ -130,33 +130,33 @@ const defaultActions = computed(() => {
     },
     {
       icon: h(PhoneIcon, { class: 'h-4 w-4' }),
-      label: __('Log a call'),
+      label: __('Log a Call'),
       onClick: () => props.modalRef.createCallLog(),
     },
     {
       icon: h(PhoneIcon, { class: 'h-4 w-4' }),
-      label: __('Make a call'),
-      onClick: () => makeCall(props.doc.mobile_no),
+      label: __('Make a Call'),
+      onClick: () => store.makeCall(props.doc.mobile_no),
       condition: () => callEnabled.value,
     },
     {
       icon: h(NoteIcon, { class: 'h-4 w-4' }),
-      label: __('New note'),
+      label: __('New Note'),
       onClick: () => props.modalRef.showNote(),
     },
     {
       icon: h(TaskIcon, { class: 'h-4 w-4' }),
-      label: __('New task'),
+      label: __('New Task'),
       onClick: () => props.modalRef.showTask(),
     },
     {
       icon: h(AttachmentIcon, { class: 'h-4 w-4' }),
-      label: __('Upload attachment'),
+      label: __('Upload Attachment'),
       onClick: () => (showFilesUploader.value = true),
     },
     {
       icon: h(WhatsAppIcon, { class: 'h-4 w-4' }),
-      label: __('New WhatsApp message'),
+      label: __('New WhatsApp Message'),
       onClick: () => (tabIndex.value = getTabIndex('WhatsApp')),
       condition: () => whatsappEnabled.value,
     },
@@ -173,14 +173,14 @@ function getTabIndex(name) {
 const callActions = computed(() => {
   let actions = [
     {
-      label: __('Log a call'),
+      label: __('Log a Call'),
       icon: 'plus',
       onClick: () => props.modalRef.createCallLog(),
     },
     {
-      label: __('Make a call'),
+      label: __('Make a Call'),
       icon: h(PhoneIcon, { class: 'h-4 w-4' }),
-      onClick: () => makeCall(props.doc.mobile_no),
+      onClick: () => store.makeCall(props.doc.mobile_no),
       condition: () => callEnabled.value,
     },
   ]

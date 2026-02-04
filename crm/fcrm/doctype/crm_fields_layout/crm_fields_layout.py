@@ -1,3 +1,4 @@
+# Copyright (c) 2024, Frappe Technologies Pvt. Ltd. and contributors
 # For license information, please see license.txt
 
 import json
@@ -9,19 +10,6 @@ from frappe.utils import random_string
 
 
 class CRMFieldsLayout(Document):
-	# begin: auto-generated types
-	# This code is auto-generated. Do not modify anything in this block.
-
-	from typing import TYPE_CHECKING
-
-	if TYPE_CHECKING:
-		from frappe.types import DF
-
-		dt: DF.Link | None
-		layout: DF.Code | None
-		type: DF.Literal["Quick Entry", "Side Panel", "Data Fields", "Grid Row", "Required Fields"]
-	# end: auto-generated types
-
 	pass
 
 

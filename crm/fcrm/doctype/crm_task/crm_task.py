@@ -1,3 +1,4 @@
+# Copyright (c) 2023, Frappe Technologies Pvt. Ltd. and contributors
 # For license information, please see license.txt
 
 import frappe
@@ -10,26 +11,6 @@ from crm.fcrm.doctype.crm_notification.crm_notification import notify_user
 
 
 class CRMTask(Document):
-	# begin: auto-generated types
-	# This code is auto-generated. Do not modify anything in this block.
-
-	from typing import TYPE_CHECKING
-
-	if TYPE_CHECKING:
-		from frappe.types import DF
-
-		assigned_to: DF.Link | None
-		description: DF.TextEditor | None
-		due_date: DF.Datetime | None
-		name: DF.Int | None
-		priority: DF.Literal["Low", "Medium", "High"]
-		reference_docname: DF.DynamicLink | None
-		reference_doctype: DF.Link | None
-		start_date: DF.Date | None
-		status: DF.Literal["Backlog", "Todo", "In Progress", "Done", "Canceled"]
-		title: DF.Data
-	# end: auto-generated types
-
 	def after_insert(self):
 		self.assign_to()
 
@@ -77,19 +58,19 @@ class CRMTask(Document):
 				"width": "8rem",
 			},
 			{
-				"label": "Due date",
+				"label": "Due Date",
 				"type": "Date",
 				"key": "due_date",
 				"width": "8rem",
 			},
 			{
-				"label": "Assigned to",
+				"label": "Assigned To",
 				"type": "Link",
 				"key": "assigned_to",
 				"width": "10rem",
 			},
 			{
-				"label": "Last modified",
+				"label": "Last Modified",
 				"type": "Datetime",
 				"key": "modified",
 				"width": "8rem",

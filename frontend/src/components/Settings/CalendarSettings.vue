@@ -139,7 +139,7 @@
         </div>
         <Button
           class="w-fit"
-          :label="__('Add notification')"
+          :label="__('Add Notification')"
           iconLeft="plus"
           @click="
             notifications.push({
@@ -239,7 +239,7 @@
         </div>
         <Button
           class="w-fit"
-          :label="__('Add notification')"
+          :label="__('Add Notification')"
           iconLeft="plus"
           @click="
             allDayNotifications.push({

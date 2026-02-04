@@ -826,10 +826,10 @@ export function ConfirmDelete({ isConfirmingDelete, onConfirmDelete }) {
       condition: () => !isConfirmingDelete.value,
     },
     {
-      label: __('Confirm delete'),
+      label: __('Confirm Delete'),
       component: (props) =>
         TemplateOption({
-          option: __('Confirm delete'),
+          option: __('Confirm Delete'),
           icon: 'trash-2',
           active: props.active,
           variant: 'danger',

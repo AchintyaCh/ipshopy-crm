@@ -129,7 +129,7 @@ async function sendWhatsAppMessage() {
 function uploadOptions(openFileSelector) {
   return [
     {
-      label: __('Upload document'),
+      label: __('Upload Document'),
       icon: 'file',
       onClick: () => {
         fileType.value = 'document'
@@ -137,7 +137,7 @@ function uploadOptions(openFileSelector) {
       },
     },
     {
-      label: __('Upload image'),
+      label: __('Upload Image'),
       icon: 'image',
       onClick: () => {
         fileType.value = 'image'
@@ -145,7 +145,7 @@ function uploadOptions(openFileSelector) {
       },
     },
     {
-      label: __('Upload video'),
+      label: __('Upload Video'),
       icon: 'video',
       onClick: () => {
         fileType.value = 'video'

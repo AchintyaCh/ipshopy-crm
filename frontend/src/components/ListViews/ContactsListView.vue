@@ -63,7 +63,7 @@
               size="sm"
             />
           </div>
-          <div v-else-if="column.key === 'mobile_no' && item">
+          <div v-else-if="column.key === 'mobile_no'">
             <PhoneIcon class="h-4 w-4" />
           </div>
         </template>
@@ -107,7 +107,7 @@
             </Button>
           </div>
           <div
-            v-else-if="label"
+            v-else
             class="truncate text-base"
             @click="
               (event) =>

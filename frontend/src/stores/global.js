@@ -6,6 +6,7 @@ export const globalStore = defineStore('crm-global', () => {
   const { $dialog, $socket } = app.appContext.config.globalProperties
 
   let callMethod = () => {}
+  const callLoading = ref(false)
 
   function setMakeCall(value) {
     callMethod = value
@@ -20,5 +21,6 @@ export const globalStore = defineStore('crm-global', () => {
     $socket,
     makeCall,
     setMakeCall,
+    callLoading,
   }
 })

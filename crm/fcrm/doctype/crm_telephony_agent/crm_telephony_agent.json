@@ -19,10 +19,7 @@
   "exotel",
   "exotel_number",
   "section_break_phlq",
-  "phone_nos",
-  "section_break_interakt",
-  "interakt",
-  "interakt_whatsapp_number"
+  "phone_nos"
  ],
  "fields": [
   {
@@ -44,7 +41,7 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Mobile no.",
+   "label": "Mobile No.",
    "read_only": 1
   },
   {
@@ -53,13 +50,13 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "User name"
+   "label": "User Name"
   },
   {
    "depends_on": "exotel",
    "fieldname": "exotel_number",
    "fieldtype": "Data",
-   "label": "Exotel number",
+   "label": "Exotel Number",
    "mandatory_depends_on": "exotel"
   },
   {
@@ -78,7 +75,7 @@
    "depends_on": "twilio",
    "fieldname": "twilio_number",
    "fieldtype": "Data",
-   "label": "Twilio number",
+   "label": "Twilio Number",
    "mandatory_depends_on": "twilio"
   },
   {
@@ -102,7 +99,7 @@
   {
    "fieldname": "default_medium",
    "fieldtype": "Select",
-   "label": "Default medium",
+   "label": "Default Medium",
    "options": "\nTwilio\nExotel"
   },
   {
@@ -112,31 +109,12 @@
    "fieldtype": "Select",
    "label": "Device",
    "options": "Computer\nPhone"
-  },
-  {
-   "fieldname": "section_break_interakt",
-   "fieldtype": "Section Break",
-   "label": "Interakt (WhatsApp)"
-  },
-  {
-   "default": "0",
-   "fieldname": "interakt",
-   "fieldtype": "Check",
-   "label": "Enable Interakt"
-  },
-  {
-   "depends_on": "interakt",
-   "description": "WhatsApp number for sending messages via Interakt",
-   "fieldname": "interakt_whatsapp_number",
-   "fieldtype": "Data",
-   "label": "WhatsApp Number",
-   "mandatory_depends_on": "interakt"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-01-30 10:00:00.000000",
- "modified_by": "shariq@frappe.io",
+ "modified": "2025-01-23 22:24:53.448716",
+ "modified_by": "Administrator",
  "module": "FCRM",
  "name": "CRM Telephony Agent",
  "naming_rule": "By fieldname",
@@ -155,7 +133,6 @@
    "write": 1
   }
  ],
- "row_format": "Dynamic",
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
