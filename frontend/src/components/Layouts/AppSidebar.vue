@@ -58,15 +58,43 @@
               <span>{{ __(view.name) }}</span>
             </div>
           </template>
-          <nav class="flex flex-col">
-            <SidebarLink
-              v-for="link in view.views"
-              :icon="link.icon"
-              :label="__(link.label)"
-              :to="link.to"
-              :isCollapsed="isSidebarCollapsed"
-              class="mx-2 my-0.5"
-            />
+         <nav class="flex flex-col">
+            <template v-for="link in view.views" :key="link.label">
+              <!-- Item with children (teams) -->
+              <div v-if="link.children && link.children.length > 0" class="mx-2 my-0.5">
+                <div
+                  class="flex cursor-pointer items-center gap-1.5 text-sm text-ink-gray-7 hover:bg-surface-gray-2 rounded px-2 py-1"
+                  @click="toggleTeam(link)"
+                >
+                  <FeatherIcon
+                    name="chevron-right"
+                    class="h-3 transition-all duration-300 ease-in-out"
+                    :class="{ 'rotate-90': expandedTeams[link.label] }"
+                  />
+                  <span>{{ __(link.label) }}</span>
+                </div>
+                <!-- Show children when expanded -->
+                <div v-if="expandedTeams[link.label]" class="ml-4 mt-1">
+                  <SidebarLink
+                    v-for="child in link.children"
+                    :key="child.label"
+                    :label="__(child.label)"
+                    :to="child.to"
+                    :isCollapsed="isSidebarCollapsed"
+                    class="my-0.5"
+                  />
+                </div>
+              </div>
+              <!-- Regular item -->
+              <SidebarLink
+                v-else
+                :icon="link.icon"
+                :label="__(link.label)"
+                :to="link.to"
+                :isCollapsed="isSidebarCollapsed"
+                class="mx-2 my-0.5"
+              />
+            </template>
           </nav>
         </CollapsibleSection>
       </div>
@@ -189,6 +217,7 @@ import { capture } from '@/telemetry'
 import router from '@/router'
 import { useStorage } from '@vueuse/core'
 import { ref, reactive, computed, h, markRaw, onMounted } from 'vue'
+import { createResource } from 'frappe-ui'
 
 const { getPinnedViews, getPublicViews } = viewsStore()
 const { toggle: toggleNotificationPanel } = notificationsStore()
@@ -246,6 +275,13 @@ const links = [
   },
 ]
 
+// Fetch user departments
+const userDepartments = createResource({
+  url: 'crm.api.department.get_user_departments',
+  cache: 'user_departments',
+  auto: true,
+})
+
 const allViews = computed(() => {
   let _views = [
     {
@@ -260,6 +296,72 @@ const allViews = computed(() => {
       }),
     },
   ]
+  
+  // Add department views with hierarchical team and user structure
+  if (userDepartments.data && userDepartments.data.length > 0) {
+    console.log('[DEPT DEBUG] Received departments:', userDepartments.data);
+    userDepartments.data.forEach((dept) => {
+      console.log('[DEPT DEBUG] Processing department:', dept.department_name, 'with teams:', dept.teams?.length || 0);
+      const deptSlug = dept.department_name.toLowerCase().replace(/\s+/g, '-')
+      
+      // Department children: teams and direct department link
+      const departmentChildren = [
+        // Direct link to department (all leads)
+        {
+          label: `All ${dept.department_name}`,
+          icon: dept.icon ? h('div', { class: 'size-auto', innerHTML: dept.icon }) : getIcon(dept.route_name),
+          to: {
+            name: dept.route_name,
+            query: { dept: deptSlug }
+          },
+        }
+      ]
+      
+      // Add teams
+      if (dept.teams && dept.teams.length > 0) {
+        console.log('[DEPT DEBUG] Department has teams:', dept.teams);
+        dept.teams.forEach((team) => {
+          console.log('[DEPT DEBUG] Processing team:', team.team_name, 'with members:', team.members?.length || 0);
+          const teamSlug = team.team_name.toLowerCase().replace(/\s+/g, '-')
+          
+          // Team children: users
+          const teamChildren = []
+          
+          // Add team members
+          if (team.members && team.members.length > 0) {
+            console.log('[DEPT DEBUG] Team has members:', team.members);
+            team.members.forEach((member) => {
+              teamChildren.push({
+                label: `${member.user_name} (${member.lead_count || 0})`,
+                to: {
+                  name: 'Dashboard',
+                  query: { user: member.user }
+                },
+              })
+            })
+          } else {
+            console.log('[DEPT DEBUG] No members found for team:', team.team_name);
+          }
+          
+          departmentChildren.push({
+            label: `${team.team_name} (${team.member_count || 0})`,
+            children: teamChildren,
+          })
+        })
+      } else {
+        console.log('[DEPT DEBUG] No teams found for department:', dept.department_name);
+      }
+      
+      _views.push({
+        name: dept.department_name,
+        opened: false,
+        views: departmentChildren,
+      })
+    })
+  } else {
+    console.log('[DEPT DEBUG] No departments found or userDepartments.data is empty');
+  }
+  
   if (getPublicViews().length) {
     _views.push({
       name: 'Public views',
@@ -612,4 +714,13 @@ const articles = ref([
     ],
   },
 ])
+
+// Track expanded/collapsed state of teams
+const expandedTeams = ref({})
+
+// Toggle team expansion
+function toggleTeam(team) {
+  const key = team.label
+  expandedTeams.value[key] = !expandedTeams.value[key]
+}
 </script>
