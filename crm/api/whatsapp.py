@@ -9,7 +9,7 @@ from crm.integrations.api import get_contact_lead_or_deal_from_number
 
 
 def validate(doc, method):
-	phone_number = doc.get("from") if doc.type == "Incoming" else doc.get("to")
+	phone_number = doc.get("from") if doc.direction == "Incoming" else doc.get("to")
 	if phone_number:
 		name, doctype = get_contact_lead_or_deal_from_number(phone_number)
 		if doctype and name is not None:
@@ -30,7 +30,7 @@ def on_update(doc, method):
 
 
 def notify_agent(doc):
-	if doc.type == "Incoming":
+	if doc.direction == "Incoming":
 		doctype = doc.reference_doctype
 		if doctype and doctype.startswith("CRM "):
 			doctype = doctype[4:].lower()
@@ -99,7 +99,7 @@ def get_whatsapp_messages(reference_doctype, reference_name):
 				},
 				fields=[
 					"name",
-					"type",
+					"direction",
 					"to",
 					"from",
 					"content_type",
@@ -128,7 +128,7 @@ def get_whatsapp_messages(reference_doctype, reference_name):
 		},
 		fields=[
 			"name",
-			"type",
+			"direction",
 			"to",
 			"from",
 			"content_type",
@@ -210,7 +210,7 @@ def get_whatsapp_messages(reference_doctype, reference_name):
 			reply_message["header"] = replied_message.get("header") or ""
 			reply_message["footer"] = replied_message.get("footer") or ""
 			reply_message["reply_to"] = replied_message["name"]
-			reply_message["reply_to_type"] = replied_message["type"]
+			reply_message["reply_to_type"] = replied_message["direction"]
 			reply_message["reply_to_from"] = from_name
 
 	return [message for message in messages if message["content_type"] != "reaction"]
@@ -273,7 +273,7 @@ def send_whatsapp_template(reference_doctype, reference_name, template, to):
 @frappe.whitelist()
 def react_on_whatsapp_message(emoji, reply_to_name):
 	reply_to_doc = frappe.get_doc("WhatsApp Message", reply_to_name)
-	to = (reply_to_doc.type == "Incoming" and reply_to_doc.get("from")) or reply_to_doc.to
+	to = (reply_to_doc.direction == "Incoming" and reply_to_doc.get("from")) or reply_to_doc.to
 	doc = frappe.new_doc("WhatsApp Message")
 	doc.update(
 		{

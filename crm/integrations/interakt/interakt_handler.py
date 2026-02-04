@@ -292,7 +292,15 @@ class Interakt:
 		}
 
 		try:
+			frappe.logger().info(f"Sending text message to Interakt API. URL: {url}")
+			frappe.logger().info(f"Payload: {payload}")
+			
 			response = requests.post(url, json=payload, headers=headers, timeout=30)
+			
+			# Log the response for debugging
+			frappe.logger().info(f"Interakt API Response Status: {response.status_code}")
+			frappe.logger().info(f"Interakt API Response Body: {response.text}")
+			
 			response.raise_for_status()
 			
 			result = response.json()
@@ -310,11 +318,37 @@ class Interakt:
 				}
 				
 		except requests.exceptions.RequestException as e:
+			error_details = str(e)
+			response_text = ""
+			error_message = str(e)
+			
+			if hasattr(e, 'response') and e.response is not None:
+				response_text = e.response.text
+				error_details = f"{str(e)}\nResponse: {response_text}"
+				
+				# Check if it's a 400 error related to 24-hour window
+				if e.response.status_code == 400:
+					try:
+						response_json = e.response.json()
+						api_error_msg = response_json.get("message", "").lower()
+						
+						# Common error messages for 24-hour window violations
+						if any(keyword in api_error_msg for keyword in ["24 hour", "conversation window", "session", "template required"]):
+							error_message = (
+								"Cannot send free text message: The 24-hour conversation window has expired. "
+								"Free text messages can only be sent within 24 hours after the customer's last message. "
+								"Please use a WhatsApp template message instead."
+							)
+						else:
+							error_message = f"Interakt API Error: {response_json.get('message', str(e))}"
+					except:
+						error_message = f"Interakt API Error (400 Bad Request): {response_text}"
+			
 			frappe.log_error(
 				title="Interakt Text Message Error",
-				message=f"Error sending text message: {str(e)}\nPayload: {payload}",
+				message=f"Error sending text message: {error_details}\nPayload: {payload}",
 			)
 			return {
 				"success": False,
-				"error": str(e),
+				"error": error_message,
 			}

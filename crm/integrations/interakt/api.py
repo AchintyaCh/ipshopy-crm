@@ -338,8 +338,10 @@ def send_text_message_to_lead(
 		frappe.throw(_("No phone number found for this {0}").format(reference_doctype))
 
 	# Format phone number with country code
+	frappe.logger().info(f"Original phone number from doc: {phone_number}")
 	if not phone_number.startswith('+'):
 		phone_number = interakt.default_country_code + phone_number.lstrip('0')
+	frappe.logger().info(f"Formatted phone number for Interakt: {phone_number}")
 
 	# Send message
 	result = interakt.send_text_message(
