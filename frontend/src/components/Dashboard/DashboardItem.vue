@@ -3,8 +3,8 @@
     <div
       v-if="item.type == 'number_chart'"
       class="flex h-full w-full rounded shadow overflow-hidden"
-      :class="isClickable(item) ? 'cursor-pointer' : 'cursor-default'"
-      @click="isClickable(item) && navigateToPage(item)"
+      :class="isClickable(item) ? 'cursor-pointer hover:shadow-md transition-shadow' : 'cursor-pointer'"
+      @click="navigateToPage(item)"
     >
       <Tooltip :text="__(item.data.tooltip)">
         <NumberChart
@@ -42,6 +42,7 @@ import { useRouter } from 'vue-router'
 import { inject } from 'vue'
 
 const router = useRouter()
+const filters = inject('filters', {})
 
 const props = defineProps({
   index: {
@@ -58,108 +59,42 @@ const props = defineProps({
   },
 })
 
-// Inject dashboard context filters if available
-const fromDate = inject('fromDate', null)
-const toDate = inject('toDate', null)
-const dashboardFilters = inject('filters', null)
-
-// Define which cards are clickable
 function isClickable(item) {
-  if (props.editing) return false; // Don't navigate when editing
-  
-  // Check if item and item name exist
-  if (!item || !item.name) return false;
-  
-  // Normalize the item name for comparison
-  const itemName = item.name.toLowerCase().trim();
-  
-  // Only allow specific cards to be clickable
-  const clickableCards = [
-    'total_leads',
-    'ongoing_deals', 
-    'won_deals',
-    'lost_deals',
-    'converted_leads'
-  ];
-  
-  // Check if the item name matches any of our clickable cards
-  return clickableCards.some(card => card === itemName);
+  if (item.type !== 'number_chart') return false
+  const name = (item.name || item.data?.title || '').toLowerCase()
+  return ['lead', 'deal', 'contact', 'won', 'lost', 'open'].some(k => name.includes(k))
 }
 
 function navigateToPage(item) {
-  if (!isClickable(item)) return;
+  const name = (item.name || item.data?.title || '').toLowerCase()
+  const query = {}
   
-  // Extract filters from the current dashboard context
-  const route = router.currentRoute.value;
-  
-  // Try to get filters from dashboard context first, fall back to route query
-  let from_date, to_date, user;
-  
-  // Check if we're in a dashboard context with injected filters
-  if (dashboardFilters && fromDate && toDate) {
-    // We're in dashboard context - use current dashboard filter values
-    // These should be reactive and reflect the current UI state
-    from_date = fromDate.value ? fromDate.value.split('-').join('-') : null;
-    to_date = toDate.value ? toDate.value.split('-').join('-') : null;
-    user = dashboardFilters.user; // This should reflect the currently selected user
-  } else {
-    // We're in route context - use route query parameters
-    from_date = route.query.from_date;
-    to_date = route.query.to_date;
-    user = route.query.user;
+  // Pass user filter from dashboard context
+  if (filters?.user) {
+    query.user = filters.user
   }
   
-  // Determine the route to navigate to based on the item's name
-  let targetRoute = 'Leads';
-  let additionalQueryParams = {};
-  
-  // Map dashboard item names to their corresponding pages and filters
-  if (item.name) {
-    switch (item.name.toLowerCase()) {
-      case 'total_leads':
-        targetRoute = 'Leads';
-        break;
-      case 'ongoing_deals':
-        targetRoute = 'Deals';
-        additionalQueryParams.status_type = 'Ongoing';
-        break;
-      case 'won_deals':
-        targetRoute = 'Deals';
-        additionalQueryParams.status_type = 'Won';
-        break;
-      case 'lost_deals':
-        targetRoute = 'Deals';
-        additionalQueryParams.status_type = 'Lost';
-        break;
-      case 'converted_leads':
-        targetRoute = 'Contacts';
-        break;
-      default:
-        return; // Don't navigate if not in our allowed list
-    }
+  // Pass date range filters from dashboard context
+  if (filters?.fromDate) {
+    query.from_date = filters.fromDate
+  }
+  if (filters?.toDate) {
+    query.to_date = filters.toDate
   }
   
-  // Build query parameters - include all that are not null/undefined
-  const queryParams = {};
-  
-  if (from_date) {
-    queryParams.from_date = from_date;
+  if (name.includes('lead')) {
+    router.push({ name: 'Leads', query })
+  } else if (name.includes('won') || name.includes('lost') || name.includes('open')) {
+    // Deal status variants
+    if (name.includes('won')) query.status_type = 'Won'
+    else if (name.includes('lost')) query.status_type = 'Lost'
+    else if (name.includes('open')) query.status_type = 'Open'
+    router.push({ name: 'Deals', query })
+  } else if (name.includes('deal')) {
+    router.push({ name: 'Deals', query })
+  } else if (name.includes('contact')) {
+    router.push({ name: 'Contacts', query })
   }
-  if (to_date) {
-    queryParams.to_date = to_date;
-  }
-  // Include user parameter only if it's explicitly set (not undefined)
-  // If user is null, we still include it to indicate "no user filter"
-  if (user !== undefined) {
-    queryParams.user = user;
-  }
-  
-  // Add any additional parameters
-  Object.assign(queryParams, additionalQueryParams);
-  
-  router.push({
-    name: targetRoute,
-    query: queryParams
-  })
 }
 </script>
+

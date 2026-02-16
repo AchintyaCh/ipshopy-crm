@@ -443,7 +443,7 @@ def get_linked_calls(name):
 			],
 		)
 
-	calls = [parse_call_log(call) for call in calls] if calls else []
+	calls = [parse_call_log(call) for call in calls if call and call.get("name")] if calls else []
 
 	return {"calls": calls, "notes": notes, "tasks": tasks}
 

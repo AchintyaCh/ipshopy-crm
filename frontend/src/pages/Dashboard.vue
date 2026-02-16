@@ -150,12 +150,10 @@ import {
   Dropdown,
   Tooltip,
 } from 'frappe-ui'
-import { ref, reactive, computed, provide, onMounted } from 'vue'
+import { ref, reactive, computed, provide } from 'vue'
 import { useRoute } from 'vue-router'
 
 const { users, getUser, isManager, isAdmin } = usersStore()
-
-const route = useRoute()
 
 const editing = ref(false)
 
@@ -164,9 +162,11 @@ const datePickerRef = ref(null)
 const preset = ref('Last 30 Days')
 const showAddChartModal = ref(false)
 
+const route = useRoute()
+
 const filters = reactive({
   period: getLastXDays(),
-  user: route.query.user && typeof route.query.user === 'string' ? route.query.user : null,
+  user: route.query.user || null,
 })
 
 const fromDate = computed(() => {

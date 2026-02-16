@@ -105,7 +105,7 @@ import { capture } from '@/telemetry'
 import { TabButtons } from 'frappe-ui'
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 
-const { $socket } = globalStore()
+const store = globalStore()
 const { mark_as_read, toggle, mark_doc_as_read } = notificationsStore()
 const { handleEventNotification } = useEventNotificationAlert()
 
@@ -138,13 +138,13 @@ function markAllAsRead() {
 }
 
 onBeforeUnmount(() => {
-  $socket.off('crm_notification')
-  $socket.off('event_notification')
+  store.$socket?.off('crm_notification')
+  store.$socket?.off('event_notification')
 })
 
 onMounted(() => {
-  $socket.on('crm_notification', () => notifications.reload())
-  $socket.on('event_notification', (data) => handleEventNotification(data))
+  store.$socket?.on('crm_notification', () => notifications.reload())
+  store.$socket?.on('event_notification', (data) => handleEventNotification(data))
 })
 
 function getRoute(notification) {

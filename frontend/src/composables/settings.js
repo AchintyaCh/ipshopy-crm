@@ -30,11 +30,17 @@ createResource({
   cache: 'Is Call Integration Enabled',
   auto: true,
   onSuccess: (data) => {
+    console.log('[Settings] Call integration settings loaded:', data)
     twilioEnabled.value = Boolean(data.twilio_enabled)
     exotelEnabled.value = Boolean(data.exotel_enabled)
     tataEnabled.value = Boolean(data.tata_tele_enabled)
     defaultCallingMedium.value = data.default_calling_medium
     callEnabled.value = twilioEnabled.value || exotelEnabled.value || tataEnabled.value
+    console.log('[Settings] Twilio:', twilioEnabled.value, 'Exotel:', exotelEnabled.value, 'Tata:', tataEnabled.value)
+    console.log('[Settings] Call enabled:', callEnabled.value)
+  },
+  onError: (error) => {
+    console.error('[Settings] Failed to load call integration settings:', error)
   },
 })
 

@@ -304,46 +304,30 @@ const showDealModal = ref(false)
 
 const defaults = reactive({})
 
-// Combine default filters with query parameter filters
-const combinedFilters = computed(() => {
-  const baseFilters = {};
-  
-  // Add user filter if present in route query
-  if (route.query.user) {
-    baseFilters.deal_owner = route.query.user;
-  }
-  
-  // Add date range filters if present in route query
-  if (route.query.from_date && route.query.to_date) {
-    baseFilters.creation = ['Between', [route.query.from_date, route.query.to_date]];
-  } else if (route.query.from_date) {
-    baseFilters.creation = ['>=', route.query.from_date];
-  } else if (route.query.to_date) {
-    baseFilters.creation = ['<=', route.query.to_date];
-  }
-  
-  // Add status type filter if present in route query
-  if (route.query.status_type) {
-    // status_type can be 'Ongoing', 'Won', 'Lost'
-    if (route.query.status_type === 'Ongoing') {
-      // Ongoing deals - for now, don't apply any status filter
-      // This will show all deals, which is not what we want, but let's test
-      // We'll need to figure out the correct way to filter out Won and Lost deals
-    } else {
-      // For Won and Lost, set status directly
-      baseFilters.status = route.query.status_type;
-    }
-  }
-  
-  return baseFilters;
-});
-
 // deals data is loaded in the ViewControls component
 const deals = ref({})
 const loadMore = ref(1)
 const triggerResize = ref(1)
 const updatedPageCount = ref(20)
 const viewControls = ref(null)
+
+const combinedFilters = computed(() => {
+  const baseFilters = {}
+  if (route.query.user) {
+    baseFilters.deal_owner = route.query.user
+  }
+  if (route.query.from_date && route.query.to_date) {
+    baseFilters.creation = ['between', [route.query.from_date, route.query.to_date]]
+  } else if (route.query.from_date) {
+    baseFilters.creation = ['>=', route.query.from_date]
+  } else if (route.query.to_date) {
+    baseFilters.creation = ['<=', route.query.to_date]
+  }
+  if (route.query.status_type) {
+    baseFilters.status = route.query.status_type
+  }
+  return baseFilters
+})
 
 function getRow(name, field) {
   function getValue(value) {

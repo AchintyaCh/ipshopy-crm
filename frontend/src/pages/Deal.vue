@@ -395,7 +395,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useActiveTabManager } from '@/composables/useActiveTabManager'
 
 const { brand } = getSettings()
-const { $dialog, $socket, makeCall } = globalStore()
+const store = globalStore()
+const { $dialog, makeCall } = store
 const { statusOptions, getDealStatus } = statusesStore()
 const { doctypeMeta } = getMeta('CRM Deal')
 
@@ -444,7 +445,7 @@ watch(
       let s = await setupCustomizations(scripts.data, {
         doc: _doc,
         $dialog,
-        $socket,
+        $socket: store.$socket,
         router,
         toast,
         updateField,
@@ -478,13 +479,13 @@ watch(
 const organization = computed(() => organizationDocument.value?.doc || {})
 
 onMounted(() => {
-  $socket.on('crm_customer_created', () => {
+  store.$socket?.on('crm_customer_created', () => {
     toast.success(__('Customer created successfully'))
   })
 })
 
 onBeforeUnmount(() => {
-  $socket.off('crm_customer_created')
+  store.$socket?.off('crm_customer_created')
 })
 
 const reload = ref(false)

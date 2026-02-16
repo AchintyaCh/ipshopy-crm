@@ -362,8 +362,8 @@ watch(
     if (scripts.data?.length) {
       let s = await setupCustomizations(scripts.data, {
         doc: _doc,
-        $dialog,
-        $socket,
+        $dialog: store.$dialog,
+        $socket: store.$socket,
         router,
         toast,
         updateField,

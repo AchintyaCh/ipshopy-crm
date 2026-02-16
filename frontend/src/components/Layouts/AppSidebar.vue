@@ -29,7 +29,13 @@
           </template>
         </SidebarLink>
       </div>
-      <div v-for="view in allViews" :key="view.label">
+      
+      <!-- Hierarchy Menu -->
+      <div v-if="!isSidebarCollapsed" class="mb-3">
+        <SidebarHierarchyMenu />
+      </div>
+      
+      <div v-for="view in filteredViews" :key="view.label">
         <div
           v-if="!view.hideLabel && isSidebarCollapsed && view.views?.length"
           class="mx-2 my-2 h-1 border-b"
@@ -193,6 +199,7 @@ import HelpIcon from '@/components/Icons/HelpIcon.vue'
 import SidebarLink from '@/components/SidebarLink.vue'
 import Notifications from '@/components/Notifications.vue'
 import Settings from '@/components/Settings/Settings.vue'
+import { SidebarHierarchyMenu } from '@/components/Hierarchy'
 import { viewsStore } from '@/stores/views'
 import {
   unreadNotificationsCount,
@@ -203,6 +210,7 @@ import { sessionStore } from '@/stores/session'
 import { showSettings, activeSettingsPage } from '@/composables/settings'
 import { showChangePasswordModal } from '@/composables/modals'
 import { FeatherIcon, call } from 'frappe-ui'
+import { createResource } from 'frappe-ui'
 import {
   SignupBanner,
   TrialBanner,
@@ -217,12 +225,18 @@ import { capture } from '@/telemetry'
 import router from '@/router'
 import { useStorage } from '@vueuse/core'
 import { ref, reactive, computed, h, markRaw, onMounted } from 'vue'
-import { createResource } from 'frappe-ui'
 
 const { getPinnedViews, getPublicViews } = viewsStore()
 const { toggle: toggleNotificationPanel } = notificationsStore()
 
 const isSidebarCollapsed = useStorage('isSidebarCollapsed', false)
+
+// Fetch user departments
+const userDepartments = createResource({
+  url: 'crm.api.department.get_user_departments',
+  cache: 'user_departments',
+  auto: true,
+})
 
 const isFCSite = ref(window.is_fc_site)
 const isDemoSite = ref(window.is_demo_site)
@@ -275,13 +289,6 @@ const links = [
   },
 ]
 
-// Fetch user departments
-const userDepartments = createResource({
-  url: 'crm.api.department.get_user_departments',
-  cache: 'user_departments',
-  auto: true,
-})
-
 const allViews = computed(() => {
   let _views = [
     {
@@ -298,8 +305,8 @@ const allViews = computed(() => {
   ]
   
   // Add department views with hierarchical team and user structure
+  console.log('[DEPT DEBUG] Received departments:', userDepartments.data);
   if (userDepartments.data && userDepartments.data.length > 0) {
-    console.log('[DEPT DEBUG] Received departments:', userDepartments.data);
     userDepartments.data.forEach((dept) => {
       console.log('[DEPT DEBUG] Processing department:', dept.department_name, 'with teams:', dept.teams?.length || 0);
       const deptSlug = dept.department_name.toLowerCase().replace(/\s+/g, '-')
@@ -361,7 +368,7 @@ const allViews = computed(() => {
   } else {
     console.log('[DEPT DEBUG] No departments found or userDepartments.data is empty');
   }
-  
+
   if (getPublicViews().length) {
     _views.push({
       name: 'Public views',
@@ -378,6 +385,16 @@ const allViews = computed(() => {
     })
   }
   return _views
+})
+
+// Filter views to exclude department views (they're now in SidebarHierarchyMenu)
+const filteredViews = computed(() => {
+  return allViews.value.filter(view => {
+    // Keep only "All Views", "Public views", and "Pinned views"
+    return view.name === 'All Views' || 
+           view.name === 'Public views' || 
+           view.name === 'Pinned views'
+  })
 })
 
 function parseView(views) {

@@ -19,6 +19,14 @@ class FCRMSettings(Document):
 		self.do_not_allow_to_delete_if_standard()
 		self.setup_forecasting()
 		self.make_currency_read_only()
+		self.set_facebook_webhook_url()
+
+	def set_facebook_webhook_url(self):
+		"""Auto-populate Facebook webhook URL for easy copy-paste"""
+		if hasattr(self, "facebook_webhook_url"):
+			webhook_url = frappe.utils.get_url() + "/api/method/crm.api.facebook_webhook.facebook_leadgen_webhook"
+			if self.facebook_webhook_url != webhook_url:
+				self.facebook_webhook_url = webhook_url
 
 	def do_not_allow_to_delete_if_standard(self):
 		if not self.has_value_changed("dropdown_items"):

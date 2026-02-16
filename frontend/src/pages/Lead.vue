@@ -278,6 +278,7 @@ import { useActiveTabManager } from '@/composables/useActiveTabManager'
 
 const { brand } = getSettings()
 const store = globalStore()
+const { $dialog } = store
 const { statusOptions, getLeadStatus } = statusesStore()
 const { doctypeMeta } = getMeta('CRM Lead')
 
@@ -327,7 +328,7 @@ watch(
       let s = await setupCustomizations(scripts.data, {
         doc: _doc,
         $dialog,
-        $socket,
+        $socket: store.$socket,
         router,
         toast,
         updateField,

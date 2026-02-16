@@ -227,7 +227,8 @@ import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 const { brand } = getSettings()
-const { $dialog, $socket } = globalStore()
+const store = globalStore()
+const { $dialog } = store
 const { statusOptions, getLeadStatus } = statusesStore()
 const { doctypeMeta } = getMeta('CRM Lead')
 const route = useRoute()
@@ -272,7 +273,7 @@ watch(
       let s = await setupCustomizations(scripts.data, {
         doc: _doc,
         $dialog,
-        $socket,
+        $socket: store.$socket,
         router,
         toast,
         updateField,

@@ -75,15 +75,15 @@ import { timeAgo } from '@/utils'
 import { Breadcrumbs, Tooltip } from 'frappe-ui'
 import { onMounted, onBeforeUnmount } from 'vue'
 
-const { $socket } = globalStore()
+const store = globalStore()
 const { mark_as_read, mark_doc_as_read } = notificationsStore()
 
 onBeforeUnmount(() => {
-  $socket.off('crm_notification')
+  store.$socket?.off('crm_notification')
 })
 
 onMounted(() => {
-  $socket.on('crm_notification', () => {
+  store.$socket?.on('crm_notification', () => {
     notifications.reload()
   })
 })

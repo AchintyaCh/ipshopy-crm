@@ -352,3 +352,83 @@ class Interakt:
 				"success": False,
 				"error": error_message,
 			}
+
+	def get_templates(self, offset=0, autosubmitted_for="all", language="all"):
+		"""
+		Fetch all WhatsApp templates from Interakt.
+		
+		:param offset: Pagination offset (default: 0)
+		:param autosubmitted_for: Filter for autosubmitted templates (default: "all")
+		:param language: Language filter (default: "all")
+		:return: Dict with success status and templates list
+		"""
+		if not self.api_key:
+			frappe.throw(_("Interakt API Key is not configured"))
+
+		# Make API request with GET method and query parameters
+		url = f"{self.base_url}/public/track/organization/templates"
+		headers = {
+			"Authorization": f"Basic {self.api_key}",
+			"Content-Type": "application/json",
+		}
+		
+		# Pass parameters as query params
+		params = {
+			"offset": offset,
+			"autosubmitted_for": autosubmitted_for,
+			"language": language,
+		}
+
+		try:
+			frappe.logger().info(f"Fetching templates from Interakt API. URL: {url}")
+			frappe.logger().info(f"Query Params: {params}")
+			
+			# Use GET request with params, not POST with json
+			response = requests.get(url, params=params, headers=headers, timeout=30)
+			
+			# Log the response for debugging
+			frappe.logger().info(f"Interakt API Response Status: {response.status_code}")
+			frappe.logger().info(f"Interakt API Response Body: {response.text}")
+			
+			response.raise_for_status()
+			
+			result = response.json()
+			
+			# Interakt API returns templates in different formats
+			# Handle both possible response structures
+			if isinstance(result, dict):
+				if "data" in result:
+					templates = result.get("data", [])
+				elif "templates" in result:
+					templates = result.get("templates", [])
+				else:
+					# If result itself contains template data
+					templates = [result] if result else []
+			elif isinstance(result, list):
+				templates = result
+			else:
+				templates = []
+			
+			return {
+				"success": True,
+				"templates": templates,
+				"count": len(templates),
+			}
+			
+		except requests.exceptions.RequestException as e:
+			error_details = str(e)
+			response_text = ""
+			
+			if hasattr(e, 'response') and e.response is not None:
+				response_text = e.response.text
+				error_details = f"{str(e)}\nResponse: {response_text}"
+			
+			frappe.log_error(
+				title="Interakt Get Templates Error",
+				message=f"Error fetching templates: {error_details}\nQuery Params: {params}",
+			)
+			return {
+				"success": False,
+				"error": str(e),
+				"templates": [],
+			}

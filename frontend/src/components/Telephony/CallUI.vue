@@ -57,7 +57,7 @@ import {
 } from '@/composables/settings'
 import { globalStore } from '@/stores/global'
 import { FormControl, call, toast } from 'frappe-ui'
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch, onMounted } from 'vue'
 
 const store = globalStore()
 
@@ -160,29 +160,49 @@ async function setDefaultCallingMedium() {
 
 watch(
   [twilioEnabled, exotelEnabled, tataEnabled],
-  ([twilioValue, exotelValue, tataValue]) =>
+  ([twilioValue, exotelValue, tataValue]) => {
+    console.log('[CALL UI] Watch triggered - Twilio:', twilioValue, 'Exotel:', exotelValue, 'Tata:', tataValue)
+    
     nextTick(() => {
+      console.log('[CALL UI] In nextTick, setting up telephony...')
+      
       if (twilioValue) {
+        console.log('[CALL UI] Setting up Twilio')
         twilio.value.setup()
         callMedium.value = 'Twilio'
       }
 
       if (exotelValue) {
+        console.log('[CALL UI] Setting up Exotel')
         exotel.value.setup()
         callMedium.value = 'Exotel'
       }
 
       if (tataValue) {
+        console.log('[CALL UI] Setting up Tata Tele')
         tata.value.setup()
         callMedium.value = 'Tata Tele'
       }
 
       if (twilioValue || exotelValue || tataValue) {
+        console.log('[CALL UI] Registering makeCall function with global store')
+        console.log('[CALL UI] makeCall function type:', typeof makeCall)
         store.setMakeCall(makeCall)
+        console.log('[CALL UI] makeCall registered successfully')
+      } else {
+        console.warn('[CALL UI] No telephony service enabled!')
       }
-    }),
+    })
+  },
   { immediate: true },
 )
+
+// Fallback: Register makeCall on mount to ensure it's always available
+onMounted(() => {
+  console.log('[CALL UI] Component mounted')
+  console.log('[CALL UI] Registering makeCall as fallback')
+  store.setMakeCall(makeCall)
+})
 
 defineExpose({
   loading,

@@ -79,9 +79,9 @@ def get_department_teams(department, team_filter=None):
 		filters=filters,
 		fields=["name", "team_name", "description"]
 	)
-	
+
 	frappe.log_error(f"[DEPT DEBUG] Department: {department}, Teams found: {len(teams)}", "Department Teams")
-	
+
 	for team in teams:
 		# Get team members
 		members = frappe.get_all(
@@ -90,8 +90,8 @@ def get_department_teams(department, team_filter=None):
 			fields=["user", "user_name", "role"]
 		)
 		
+
 		frappe.log_error(f"[DEPT DEBUG] Team: {team.team_name}, Members found: {len(members)}, Members: {members}", "Team Members")
-		
 		team["members"] = members
 		team["member_count"] = len(members)
 		

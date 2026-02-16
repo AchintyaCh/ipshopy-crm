@@ -59,7 +59,8 @@ const list = defineModel()
 
 const router = useRouter()
 
-const { $dialog, $socket } = globalStore()
+const store = globalStore()
+const { $dialog } = store
 
 const showEditModal = ref(false)
 const selectedValues = ref([])
@@ -238,7 +239,7 @@ onMounted(async () => {
     createToast: toast.create,
     toast,
     $dialog,
-    $socket,
+    $socket: store.$socket,
     router,
   })
   customBulkActions.value =

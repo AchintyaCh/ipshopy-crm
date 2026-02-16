@@ -9,8 +9,18 @@
         "template_name",
         "status",
         "for_doctype",
+        "category",
+        "language_code",
         "template",
-        "footer"
+        "footer",
+        "interakt_template_id",
+        "header_type",
+        "header_format",
+        "header_text",
+        "body_text",
+        "buttons",
+        "variable_count",
+        "last_synced"
     ],
     "fields": [
         {
@@ -26,13 +36,25 @@
             "fieldtype": "Select",
             "in_list_view": 1,
             "label": "Status",
-            "options": "Active\nInactive"
+            "options": "APPROVED\nPENDING\nREJECTED\nActive\nInactive"
         },
         {
             "fieldname": "for_doctype",
             "fieldtype": "Link",
             "label": "For DocType",
             "options": "DocType"
+        },
+        {
+            "fieldname": "category",
+            "fieldtype": "Select",
+            "label": "Category",
+            "options": "\nMARKETING\nUTILITY\nAUTHENTICATION"
+        },
+        {
+            "fieldname": "language_code",
+            "fieldtype": "Data",
+            "label": "Language Code",
+            "description": "e.g., en, hi, es"
         },
         {
             "fieldname": "template",
@@ -43,6 +65,52 @@
             "fieldname": "footer",
             "fieldtype": "Data",
             "label": "Footer"
+        },
+        {
+            "fieldname": "interakt_template_id",
+            "fieldtype": "Data",
+            "label": "Interakt Template ID",
+            "read_only": 1
+        },
+        {
+            "fieldname": "header_type",
+            "fieldtype": "Select",
+            "label": "Header Type",
+            "options": "\nTEXT\nIMAGE\nDOCUMENT\nVIDEO"
+        },
+        {
+            "fieldname": "header_text",
+            "fieldtype": "Data",
+            "label": "Header Text"
+        },
+        {
+            "fieldname": "body_text",
+            "fieldtype": "Long Text",
+            "label": "Body Text"
+        },
+        {
+            "fieldname": "buttons",
+            "fieldtype": "Long Text",
+            "label": "Buttons",
+            "description": "JSON array of button definitions from Interakt"
+        },
+        {
+            "fieldname": "header_format",
+            "fieldtype": "Select",
+            "label": "Header Format",
+            "options": "\nTEXT\nIMAGE\nDOCUMENT\nVIDEO"
+        },
+        {
+            "fieldname": "variable_count",
+            "fieldtype": "Int",
+            "label": "Variable Count",
+            "description": "Number of body variables (e.g., {{1}}, {{2}}, etc.)"
+        },
+        {
+            "fieldname": "last_synced",
+            "fieldtype": "Datetime",
+            "label": "Last Synced",
+            "read_only": 1
         }
     ],
     "index_web_pages_for_search": 1,

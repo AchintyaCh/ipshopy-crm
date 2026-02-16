@@ -13,34 +13,22 @@
         :id="whatsapp.name"
         class="group/message relative max-w-[90%] rounded-md bg-surface-gray-1 text-ink-gray-9 p-1.5 pl-2 text-base shadow-sm"
       >
+        <!-- Reply-to preview -->
         <div
           v-if="whatsapp.is_reply"
           @click="() => scrollToMessage(whatsapp.reply_to)"
-          class="mb-1 cursor-pointer rounded border-0 border-l-4 bg-surface-gray-3 p-2 text-ink-gray-5"
+          class="mb-1 cursor-pointer rounded border-0 border-l-4 bg-surface-gray-2 p-2 text-base text-ink-gray-5"
           :class="
             whatsapp.reply_to_type == 'Incoming'
               ? 'border-green-500'
               : 'border-blue-400'
           "
         >
-          <div
-            class="mb-1 text-sm font-bold"
-            :class="
-              whatsapp.reply_to_type == 'Incoming'
-                ? 'text-ink-green-2'
-                : 'text-ink-blue-link'
-            "
-          >
-            {{ whatsapp.reply_to_from || __('You') }}
+          <div class="text-xs font-medium text-ink-gray-6">
+            {{ whatsapp.reply_to_type == 'Incoming' ? __('Customer') : __('You') }}
           </div>
-          <div class="flex flex-col gap-2 max-h-12 overflow-hidden">
-            <div v-if="whatsapp.header" class="text-base font-semibold">
-              {{ whatsapp.header }}
-            </div>
-            <div v-html="formatWhatsAppMessage(whatsapp.reply_message)" />
-            <div v-if="whatsapp.footer" class="text-xs text-ink-gray-5">
-              {{ whatsapp.footer }}
-            </div>
+          <div class="mt-0.5 line-clamp-2 text-xs">
+            {{ whatsapp.reply_to_message || __('Message') }}
           </div>
         </div>
         <div class="flex gap-2 justify-between">
@@ -63,17 +51,21 @@
               {{ whatsapp.reaction }}
             </div>
           </div>
+          <!-- Template message: show name only, hover for body -->
           <div
             class="flex flex-col gap-2"
             v-if="whatsapp.message_type == 'Template'"
           >
-            <div v-if="whatsapp.header" class="text-base font-semibold">
-              {{ whatsapp.header }}
-            </div>
-            <div v-html="formatWhatsAppMessage(whatsapp.template)" />
-            <div v-if="whatsapp.footer" class="text-xs text-ink-gray-5">
-              {{ whatsapp.footer }}
-            </div>
+            <Tooltip
+              :text="whatsapp.template_body || whatsapp.template || whatsapp.message || 'Template message'"
+            >
+              <div class="flex items-center gap-1.5 py-1 px-2 rounded bg-surface-gray-2 text-sm cursor-default">
+                <FeatherIcon name="file-text" class="h-3.5 w-3.5 text-ink-gray-5 shrink-0" />
+                <span class="font-medium text-ink-gray-7">
+                  {{ whatsapp.template_name || 'Template' }}
+                </span>
+              </div>
+            </Tooltip>
           </div>
           <div
             v-else-if="whatsapp.content_type == 'text'"
@@ -133,14 +125,21 @@
               </div>
             </Tooltip>
             <div v-if="whatsapp.type == 'Outgoing'">
+              <!-- Single check: sent but not yet delivered -->
               <CheckIcon
-                v-if="['sent', 'Success'].includes(whatsapp.status)"
-                class="size-4"
+                v-if="whatsapp.status?.toLowerCase() === 'sent'"
+                class="size-4 text-gray-400"
               />
+              <!-- Double check gray: delivered but not read -->
               <DoubleCheckIcon
-                v-else-if="['read', 'delivered'].includes(whatsapp.status)"
+                v-else-if="whatsapp.status?.toLowerCase() === 'delivered'"
+                class="size-4 text-gray-400"
+              />
+              <!-- Double check blue: read (WhatsApp blue) -->
+              <DoubleCheckIcon
+                v-else-if="whatsapp.status?.toLowerCase() === 'read'"
                 class="size-4"
-                :class="{ 'text-ink-blue-2': whatsapp.status == 'read' }"
+                style="color: #53bdeb;"
               />
             </div>
           </div>
@@ -185,12 +184,14 @@ const props = defineProps({
 })
 
 const list = defineModel()
+const reply = defineModel('reply')
 
 function openFileInAnotherTab(url) {
   window.open(url, '_blank')
 }
 
 function formatWhatsAppMessage(message) {
+  if (!message) return ''
   // if message contains _text_, make it italic
   message = message.replace(/_(.*?)_/g, '<i>$1</i>')
   // if message contains *text*, make it bold
@@ -231,29 +232,18 @@ function reactOnMessage(name, emoji) {
   })
 }
 
-const reply = defineModel('reply')
-const replyMode = ref(false)
-
 function messageOptions(message) {
   return [
     {
-      label: 'Reply',
+      label: __('Reply'),
       onClick: () => {
-        replyMode.value = true
         reply.value = {
-          ...message,
-          message: formatWhatsAppMessage(message.message),
+          name: message.name,
+          message: message.message,
+          type: message.type,
         }
       },
     },
-    // {
-    //   label: 'Forward',
-    //   onClick: () => console.log('Forward'),
-    // },
-    // {
-    //   label: 'Delete',
-    //   onClick: () => console.log('Delete'),
-    // },
   ]
 }
 

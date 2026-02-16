@@ -155,6 +155,13 @@ doc_events = {
 		"validate": ["crm.api.whatsapp.validate"],
 		"on_update": ["crm.api.whatsapp.on_update"],
 	},
+	"CRM WhatsApp Message": {
+		"validate": ["crm.api.whatsapp.validate"],
+		"on_update": ["crm.api.whatsapp.on_update"],
+	},
+	"CRM Lead": {
+		"after_insert": ["crm.integrations.interakt.api.send_welcome_message_to_lead_hook"],
+	},
 	"CRM Deal": {
 		"on_update": [
 			"crm.fcrm.doctype.erpnext_crm_settings.erpnext_crm_settings.create_customer_in_erpnext"
@@ -178,7 +185,7 @@ scheduler_events = {
 	"hourly_long": ["crm.lead_syncing.background_sync.sync_leads_from_sources_hourly"],
 	"monthly_long": ["crm.lead_syncing.background_sync.sync_leads_from_sources_monthly"],
 	"cron": {
-		"*/5 * * * *": ["crm.lead_syncing.background_sync.sync_leads_from_sources_5_minutes"],
+		"*/1 * * * *": ["crm.lead_syncing.background_sync.sync_leads_from_sources_5_minutes"],
 		"*/10 * * * *": ["crm.lead_syncing.background_sync.sync_leads_from_sources_10_minutes"],
 		"*/15 * * * *": ["crm.lead_syncing.background_sync.sync_leads_from_sources_15_minutes"],
 	},

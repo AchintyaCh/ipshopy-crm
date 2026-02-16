@@ -3,6 +3,10 @@ import { usersStore } from '@/stores/users'
 import { sessionStore } from '@/stores/session'
 import { viewsStore } from '@/stores/views'
 
+const handleMobileView = (componentName) => {
+  return window.innerWidth < 768 ? `Mobile${componentName}` : componentName
+}
+
 const routes = [
   {
     path: '/',
@@ -17,6 +21,11 @@ const routes = [
     path: '/dashboard',
     name: 'Dashboard',
     component: () => import('@/pages/Dashboard.vue'),
+  },
+  {
+    path: '/call-center-test',
+    name: 'CallCenterTest',
+    component: () => import('@/pages/CallCenterTest.vue'),
   },
   {
     alias: '/leads',
@@ -122,10 +131,6 @@ const routes = [
     component: () => import('@/pages/NotPermitted.vue'),
   },
 ]
-
-const handleMobileView = (componentName) => {
-  return window.innerWidth < 768 ? `Mobile${componentName}` : componentName
-}
 
 let router = createRouter({
   history: createWebHistory('/crm'),

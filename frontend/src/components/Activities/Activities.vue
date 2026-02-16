@@ -420,8 +420,8 @@
       ref="whatsappBox"
       v-if="title == 'WhatsApp'"
       v-model="doc"
-      v-model:reply="replyMessage"
       v-model:whatsapp="whatsappMessages"
+      v-model:reply="replyMessage"
       :doctype="doctype"
       @scroll="scroll"
     />
@@ -430,6 +430,8 @@
     v-if="whatsappEnabled"
     v-model="showWhatsappTemplates"
     :doctype="doctype"
+    :docname="docname"
+    :phoneNumber="doc.mobile_no"
     @send="(t) => sendTemplate(t)"
   />
   <AllModals
@@ -508,7 +510,8 @@ import {
 } from 'vue'
 import { useRoute } from 'vue-router'
 
-const { makeCall, $socket } = globalStore()
+const store = globalStore()
+const { makeCall } = store
 const { getUser } = usersStore()
 
 const props = defineProps({
@@ -576,11 +579,11 @@ const whatsappMessages = createResource({
 })
 
 onBeforeUnmount(() => {
-  $socket.off('whatsapp_message')
+  store.$socket?.off('whatsapp_message')
 })
 
 onMounted(() => {
-  $socket.on('whatsapp_message', (data) => {
+  store.$socket?.on('whatsapp_message', (data) => {
     if (
       data.reference_doctype === props.doctype &&
       data.reference_name === props.docname
@@ -598,22 +601,44 @@ onMounted(() => {
   })
 })
 
-function sendTemplate(template) {
+function sendTemplate(templateData) {
   showWhatsappTemplates.value = false
   capture('send_whatsapp_template', { doctype: props.doctype })
-  createResource({
-    url: 'crm.api.whatsapp.send_whatsapp_template',
-    params: {
-      reference_doctype: props.doctype,
-      reference_name: props.docname,
-      to: doc.value.mobile_no,
-      template,
-    },
-    auto: true,
-  })
-}
 
-const replyMessage = ref({})
+  // New flow: templateData is an object with template_name, language_code, body_values, etc.
+  if (typeof templateData === 'object' && templateData.template_name) {
+    createResource({
+      url: 'crm.integrations.interakt.api.send_template_message',
+      params: {
+        reference_doctype: props.doctype,
+        reference_docname: props.docname,
+        phone_number: doc.value.mobile_no,
+        template_name: templateData.template_name,
+        language_code: templateData.language_code || 'en',
+        header_values: templateData.header_values ? JSON.stringify(templateData.header_values) : null,
+        body_values: templateData.body_values ? JSON.stringify(templateData.body_values) : null,
+        button_values: templateData.button_values ? JSON.stringify(templateData.button_values) : null,
+        file_name: templateData.file_name || null,
+      },
+      auto: true,
+      onSuccess: () => {
+        whatsappMessages.reload()
+      },
+    })
+  } else {
+    // Fallback: old flow with just template name string
+    createResource({
+      url: 'crm.api.whatsapp.send_whatsapp_template',
+      params: {
+        reference_doctype: props.doctype,
+        reference_name: props.docname,
+        to: doc.value.mobile_no,
+        template: templateData,
+      },
+      auto: true,
+    })
+  }
+}
 
 function get_activities() {
   if (!all_activities.data?.versions) return []
@@ -823,4 +848,6 @@ const callActions = computed(() => {
 })
 
 defineExpose({ emailBox, all_activities, changeTabTo })
+
+const replyMessage = ref({})
 </script>

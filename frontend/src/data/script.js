@@ -38,11 +38,11 @@ export function getScript(doctype, view = 'Form') {
     let scriptDefs = doctypeScripts[doctype]
     if (!scriptDefs || Object.keys(scriptDefs).length === 0) return null
 
-    const { $dialog, $socket } = globalStore()
+    const store = globalStore()
 
-    helpers.createDialog = $dialog
+    helpers.createDialog = store.$dialog
     helpers.toast = toast
-    helpers.socket = $socket
+    helpers.socket = store.$socket
     helpers.router = router
     helpers.call = call
 

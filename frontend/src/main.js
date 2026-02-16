@@ -4,6 +4,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createDialog } from './utils/dialogs'
 import { initSocket } from './socket'
+import { globalStore } from './stores/global'
 import router from './router'
 import translationPlugin from './translation'
 import { posthogPlugin } from './telemetry'
@@ -62,12 +63,22 @@ if (import.meta.env.DEV) {
       }
       socket = initSocket()
       app.config.globalProperties.$socket = socket
+      
+      // Initialize global store with dialog and socket
+      const store = globalStore()
+      store.setGlobalProperties(createDialog, socket)
+      
       app.mount('#app')
     },
   )
 } else {
   socket = initSocket()
   app.config.globalProperties.$socket = socket
+  
+  // Initialize global store with dialog and socket
+  const store = globalStore()
+  store.setGlobalProperties(createDialog, socket)
+  
   app.mount('#app')
 }
 

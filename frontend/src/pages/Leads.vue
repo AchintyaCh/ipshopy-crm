@@ -327,51 +327,27 @@ const showLeadModal = ref(false)
 
 const defaults = reactive({})
 
-// Combine default filters with query parameter filters
-const combinedFilters = computed(() => {
-  const baseFilters = {};
-  
-  // Apply the converted filter (to show only unconverted leads)
-  baseFilters.converted = 0;
-  
-  // Add user filter if present in route query
-  if (route.query.user) {
-    baseFilters.lead_owner = route.query.user;
-  }
-  
-  // Add date range filters if present in route query
-  if (route.query.from_date && route.query.to_date) {
-    baseFilters.creation = ['Between', [route.query.from_date, route.query.to_date]];
-  } else if (route.query.from_date) {
-    baseFilters.creation = ['>=', route.query.from_date];
-  } else if (route.query.to_date) {
-    baseFilters.creation = ['<=', route.query.to_date];
-  }
-  
-  return baseFilters;
-});
-
-// Extra filters for date range (these are handled separately by ViewControls)
-const extraFilters = computed(() => {
-  const filters = {};
-  
-  if (route.query.from_date && route.query.to_date) {
-    filters.date_range = [route.query.from_date, route.query.to_date];
-  } else if (route.query.from_date) {
-    filters.from_date = route.query.from_date;
-  } else if (route.query.to_date) {
-    filters.to_date = route.query.to_date;
-  }
-  
-  return filters;
-});
-
 // leads data is loaded in the ViewControls component
 const leads = ref({})
 const loadMore = ref(1)
 const triggerResize = ref(1)
 const updatedPageCount = ref(20)
 const viewControls = ref(null)
+
+const combinedFilters = computed(() => {
+  const baseFilters = { converted: 0 }
+  if (route.query.user) {
+    baseFilters.lead_owner = route.query.user
+  }
+  if (route.query.from_date && route.query.to_date) {
+    baseFilters.creation = ['between', [route.query.from_date, route.query.to_date]]
+  } else if (route.query.from_date) {
+    baseFilters.creation = ['>=', route.query.from_date]
+  } else if (route.query.to_date) {
+    baseFilters.creation = ['<=', route.query.to_date]
+  }
+  return baseFilters
+})
 
 function getRow(name, field) {
   function getValue(value) {

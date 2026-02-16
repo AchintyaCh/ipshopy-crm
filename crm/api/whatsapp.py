@@ -6,6 +6,7 @@ from frappe import _
 from crm.api.doc import get_assigned_users
 from crm.fcrm.doctype.crm_notification.crm_notification import notify_user
 from crm.integrations.api import get_contact_lead_or_deal_from_number
+import crm.integrations.interakt.api as interakt_api
 
 
 def validate(doc, method):
@@ -22,7 +23,7 @@ def on_update(doc, method):
 		"whatsapp_message",
 		{
 			"reference_doctype": doc.reference_doctype,
-			"reference_name": doc.reference_name,
+			"reference_name": doc.reference_docname,
 		},
 	)
 
@@ -38,10 +39,10 @@ def notify_agent(doc):
             <div class="mb-2 leading-5 text-ink-gray-5">
                 <span class="font-medium text-ink-gray-9">{_("You")}</span>
                 <span>{_("received a whatsapp message in {0}").format(doctype)}</span>
-                <span class="font-medium text-ink-gray-9">{doc.reference_name}</span>
+                <span class="font-medium text-ink-gray-9">{doc.reference_docname}</span>
             </div>
         """
-		assigned_users = get_assigned_users(doc.reference_doctype, doc.reference_name)
+		assigned_users = get_assigned_users(doc.reference_doctype, doc.reference_docname)
 		for user in assigned_users:
 			notify_user(
 				{
@@ -50,16 +51,19 @@ def notify_agent(doc):
 					"notification_type": "WhatsApp",
 					"message": doc.message,
 					"notification_text": notification_text,
-					"reference_doctype": "WhatsApp Message",
+					"reference_doctype": "CRM WhatsApp Message",
 					"reference_docname": doc.name,
 					"redirect_to_doctype": doc.reference_doctype,
-					"redirect_to_docname": doc.reference_name,
+					"redirect_to_docname": doc.reference_docname,
 				}
 			)
 
 
 @frappe.whitelist()
 def is_whatsapp_enabled():
+	if frappe.db.exists("DocType", "CRM Interakt Settings"):
+		return interakt_api.is_enabled()
+	
 	if not frappe.db.exists("DocType", "WhatsApp Settings"):
 		return False
 	default_outgoing = frappe.get_cached_value(
@@ -73,6 +77,9 @@ def is_whatsapp_enabled():
 
 @frappe.whitelist()
 def is_whatsapp_installed():
+	if frappe.db.exists("DocType", "CRM Interakt Settings"):
+		return True
+		
 	if not frappe.db.exists("DocType", "WhatsApp Settings"):
 		return False
 	return True
@@ -80,19 +87,25 @@ def is_whatsapp_installed():
 
 @frappe.whitelist()
 def get_whatsapp_messages(reference_doctype, reference_name):
+	# Delegate to Interakt API if available
+	if frappe.db.exists("DocType", "CRM Interakt Settings") and interakt_api.is_enabled():
+		return interakt_api.get_whatsapp_messages(reference_doctype, reference_name)
+
 	# twilio integration app is not compatible with crm app
 	# crm has its own twilio integration in built
 	if "twilio_integration" in frappe.get_installed_apps():
 		return []
-	if not frappe.db.exists("DocType", "WhatsApp Message"):
+	if not frappe.db.exists("DocType", "CRM WhatsApp Message") and not frappe.db.exists("DocType", "WhatsApp Message"):
 		return []
 	messages = []
+	
+	doctype = "CRM WhatsApp Message" if frappe.db.exists("DocType", "CRM WhatsApp Message") else "WhatsApp Message"
 
 	if reference_doctype == "CRM Deal":
 		lead = frappe.db.get_value(reference_doctype, reference_name, "lead")
 		if lead:
 			messages = frappe.get_all(
-				"WhatsApp Message",
+				doctype,
 				filters={
 					"reference_doctype": "CRM Lead",
 					"reference_name": lead,
@@ -121,7 +134,7 @@ def get_whatsapp_messages(reference_doctype, reference_name):
 			)
 
 	messages += frappe.get_all(
-		"WhatsApp Message",
+		doctype,
 		filters={
 			"reference_doctype": reference_doctype,
 			"reference_name": reference_name,
@@ -226,10 +239,16 @@ def create_whatsapp_message(
 	reply_to,
 	content_type="text",
 ):
-	doc = frappe.new_doc("WhatsApp Message")
+	# Delegate to Interakt API if available
+	if frappe.db.exists("DocType", "CRM Interakt Settings") and interakt_api.is_enabled():
+		if content_type == "text":
+			return interakt_api.send_text_message_to_lead(reference_doctype, reference_name, message)
+
+	doctype = "CRM WhatsApp Message" if frappe.db.exists("DocType", "CRM WhatsApp Message") else "WhatsApp Message"
+	doc = frappe.new_doc(doctype)
 
 	if reply_to:
-		reply_doc = frappe.get_doc("WhatsApp Message", reply_to)
+		reply_doc = frappe.get_doc(doctype, reply_to)
 		doc.update(
 			{
 				"is_reply": True,
@@ -253,7 +272,12 @@ def create_whatsapp_message(
 
 @frappe.whitelist()
 def send_whatsapp_template(reference_doctype, reference_name, template, to):
-	doc = frappe.new_doc("WhatsApp Message")
+	# Delegate to Interakt API if available
+	if frappe.db.exists("DocType", "CRM Interakt Settings") and interakt_api.is_enabled():
+		return interakt_api.send_template_message(reference_doctype, reference_name, to, template)
+
+	doctype = "CRM WhatsApp Message" if frappe.db.exists("DocType", "CRM WhatsApp Message") else "WhatsApp Message"
+	doc = frappe.new_doc(doctype)
 	doc.update(
 		{
 			"reference_doctype": reference_doctype,
@@ -272,9 +296,10 @@ def send_whatsapp_template(reference_doctype, reference_name, template, to):
 
 @frappe.whitelist()
 def react_on_whatsapp_message(emoji, reply_to_name):
-	reply_to_doc = frappe.get_doc("WhatsApp Message", reply_to_name)
+	doctype = "CRM WhatsApp Message" if frappe.db.exists("DocType", "CRM WhatsApp Message") else "WhatsApp Message"
+	reply_to_doc = frappe.get_doc(doctype, reply_to_name)
 	to = (reply_to_doc.direction == "Incoming" and reply_to_doc.get("from")) or reply_to_doc.to
-	doc = frappe.new_doc("WhatsApp Message")
+	doc = frappe.new_doc(doctype)
 	doc.update(
 		{
 			"reference_doctype": reply_to_doc.reference_doctype,

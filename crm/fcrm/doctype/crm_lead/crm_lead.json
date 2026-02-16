@@ -414,7 +414,8 @@
    "report": 1,
    "role": "Sales User",
    "share": 1,
-   "write": 1
+   "write": 1,
+   "if_owner": 1
   },
   {
    "create": 1,

@@ -233,7 +233,8 @@ const props = defineProps({
 })
 
 const { brand } = getSettings()
-const { $dialog, $socket } = globalStore()
+const store = globalStore()
+const { $dialog } = store
 const { getUser } = usersStore()
 const { getDealStatus } = statusesStore()
 const { doctypeMeta } = getMeta('CRM Organization')
@@ -573,7 +574,7 @@ watch(
       let s = await setupCustomizations(scripts.data, {
         doc: _doc,
         $dialog,
-        $socket,
+        $socket: store.$socket,
         router,
         toast,
         updateField: organization.setValue.submit,

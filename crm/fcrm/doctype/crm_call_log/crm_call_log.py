@@ -96,67 +96,88 @@ class CRMCallLog(Document):
 
 
 def parse_call_log(call):
-	call["show_recording"] = False
-	call["_duration"] = seconds_to_duration(call.get("duration"))
-	if call.get("type") == "Incoming":
-		call["activity_type"] = "incoming_call"
-		contact = get_contact_by_phone_number(call.get("from"))
-		receiver = (
-			frappe.db.get_values("User", call.get("receiver"), ["full_name", "user_image"])[0]
-			if call.get("receiver")
-			else [None, None]
-		)
-		call["_caller"] = {
-			"label": contact.get("full_name", "Unknown"),
-			"image": contact.get("image"),
-		}
-		call["_receiver"] = {
-			"label": receiver[0],
-			"image": receiver[1],
-		}
-	elif call.get("type") == "Outgoing":
-		call["activity_type"] = "outgoing_call"
-		contact = get_contact_by_phone_number(call.get("to"))
-		caller = (
-			frappe.db.get_values("User", call.get("caller"), ["full_name", "user_image"])[0]
-			if call.get("caller")
-			else [None, None]
-		)
-		call["_caller"] = {
-			"label": caller[0],
-			"image": caller[1],
-		}
-		call["_receiver"] = {
-			"label": contact.get("full_name", "Unknown"),
-			"image": contact.get("image"),
-		}
+	try:
+		call["show_recording"] = False
+		call["_duration"] = seconds_to_duration(call.get("duration"))
+		if call.get("type") == "Incoming":
+			call["activity_type"] = "incoming_call"
+			contact = get_contact_by_phone_number(call.get("from"))
+			receiver = [None, None]
+			if call.get("receiver"):
+				receiver_data = frappe.db.get_values("User", call.get("receiver"), ["full_name", "user_image"])
+				if receiver_data:
+					receiver = receiver_data[0]
+			call["_caller"] = {
+				"label": contact.get("full_name", "Unknown"),
+				"image": contact.get("image"),
+			}
+			call["_receiver"] = {
+				"label": receiver[0] or "Unknown",
+				"image": receiver[1],
+			}
+		elif call.get("type") == "Outgoing":
+			call["activity_type"] = "outgoing_call"
+			contact = get_contact_by_phone_number(call.get("to"))
+			caller = [None, None]
+			if call.get("caller"):
+				caller_data = frappe.db.get_values("User", call.get("caller"), ["full_name", "user_image"])
+				if caller_data:
+					caller = caller_data[0]
+			call["_caller"] = {
+				"label": caller[0] or frappe.session.user or "Unknown",
+				"image": caller[1],
+			}
+			call["_receiver"] = {
+				"label": contact.get("full_name", "Unknown"),
+				"image": contact.get("image"),
+			}
 
-	return call
+		return call
+	except Exception as e:
+		frappe.log_error(f"Error parsing call log {call.get('name')}: {str(e)}", "Parse Call Log Error")
+		# Return minimal valid call data
+		return {
+			"name": call.get("name"),
+			"show_recording": False,
+			"_duration": "00:00",
+			"activity_type": "outgoing_call",
+			"_caller": {"label": "Unknown", "image": None},
+			"_receiver": {"label": "Unknown", "image": None},
+			**call
+		}
 
 
 @frappe.whitelist()
 def get_call_log(name):
-	call = frappe.get_cached_doc(
-		"CRM Call Log",
-		name,
-		fields=[
-			"name",
-			"caller",
-			"receiver",
-			"duration",
-			"type",
-			"status",
-			"from",
-			"to",
-			"note",
-			"recording_url",
-			"reference_doctype",
-			"reference_docname",
-			"creation",
-		],
-	).as_dict()
+	# Check if call log exists
+	if not frappe.db.exists("CRM Call Log", name):
+		return None  # Return None instead of throwing error
+	
+	try:
+		call = frappe.get_cached_doc(
+			"CRM Call Log",
+			name,
+			fields=[
+				"name",
+				"caller",
+				"receiver",
+				"duration",
+				"type",
+				"status",
+				"from",
+				"to",
+				"note",
+				"recording_url",
+				"reference_doctype",
+				"reference_docname",
+				"creation",
+			],
+		).as_dict()
 
-	call = parse_call_log(call)
+		call = parse_call_log(call)
+	except Exception as e:
+		frappe.log_error(f"Error fetching call log {name}: {str(e)}", "Get Call Log Error")
+		return None
 
 	notes = []
 	tasks = []

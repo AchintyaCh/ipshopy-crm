@@ -242,7 +242,7 @@ import { TextEditor, Avatar, Button, createResource, toast } from 'frappe-ui'
 import { ref, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 
-const { $socket } = globalStore()
+const store = globalStore()
 
 const callPopupHeader = ref(null)
 const showCallPopup = ref(false)
@@ -409,7 +409,7 @@ function makeOutgoingCall(number) {
 }
 
 function setup() {
-  $socket.on('exotel_call', (data) => {
+  store.$socket?.on('exotel_call', (data) => {
     callData.value = data
     console.log(data)
 
@@ -430,7 +430,7 @@ function setup() {
 }
 
 onBeforeUnmount(() => {
-  $socket.off('exotel_call')
+  store.$socket?.off('exotel_call')
 })
 
 const router = useRouter()

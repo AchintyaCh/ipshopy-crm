@@ -18,3 +18,7 @@ crm.patches.v1_0.update_deal_status_type
 crm.patches.v1_0.create_default_lost_reasons
 crm.patches.v1_0.add_fields_in_assignment_rule
 crm.patches.v1_0.add_fb_lead_source
+crm.patches.v1_0.add_department_and_team_fields_to_lead # Department fields for lead distribution
+crm.patches.v1_0.add_facebook_webhook_settings # Facebook webhook configuration
+crm.patches.add_call_status_field
+crm.patches.v1_0.update_department_team_naming

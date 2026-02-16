@@ -1,67 +1,487 @@
-import frappe
-import requests
+# apps/crm/crm/integrations/tata_tele/handler.py
+
+import uuid
 import json
 import frappe
 import requests
-import json
 from frappe import _
-from frappe.integrations.utils import create_request_log
 
 from crm.integrations.api import get_contact_by_phone_number
 from crm.fcrm.doctype.crm_tata_tele_settings.crm_tata_tele_settings import TataTeleSettings
 
 
+# =========================================================
+# Helpers
+# =========================================================
+
 def is_integration_enabled():
-	"""Check if Tata Tele integration is enabled"""
 	return TataTeleSettings.is_enabled()
 
+
+def _get_json():
+	try:
+		return frappe.request.get_json(silent=True) or {}
+	except Exception:
+		raw = frappe.request.get_data(as_text=True) or "{}"
+		try:
+			return json.loads(raw)
+		except Exception:
+			return {}
+
+
+def _pick(d, keys):
+	if not isinstance(d, dict):
+		return None
+	for k in keys:
+		v = d.get(k)
+		if v not in (None, ""):
+			return v
+	return None
+
+
+def _norm_num(v):
+	"""Keep only digits and +"""
+	if not v:
+		return None
+	s = str(v).strip()
+	out = []
+	for ch in s:
+		if ch.isdigit() or ch == "+":
+			out.append(ch)
+	return "".join(out) or None
+
+
+def _only_last_10(v):
+	"""
+	Convert +919359889256 / 919359889256 / 9359889256 -> 9359889256
+	Always store ONLY last 10 digits in DB.
+	"""
+	n = _norm_num(v)
+	if not n:
+		return None
+	d = "".join(ch for ch in n if ch.isdigit())
+	if len(d) >= 10:
+		return d[-10:]
+	return d or None
+
+
+def _parse_dt(v):
+	if not v:
+		return None
+	try:
+		return frappe.utils.get_datetime(str(v).strip())
+	except Exception:
+		return None
+
+
+def _extract_ref_id(payload):
+	return _pick(payload, ["ref_id", "refId", "refID"])
+
+
+def _extract_call_id(payload):
+	return _pick(payload, ["call_id", "callId", "callid"])
+
+
+def _extract_customer(payload):
+	# Outbound "customer" = destination number
+	return _only_last_10(_pick(payload, [
+		"customer_no_with_prefix", "customer_no_with_prefix ",
+		"customer_number_with_prefix", "customer_number_with_prefix ",
+		"customer_number",
+		"call_to_number",
+		"destination_number",
+	]))
+
+
+def _extract_agent(payload):
+	# Agent who answered / caller id
+	return _only_last_10(_pick(payload, [
+		"answer_agent_number",        # ✅ NEW: from answered webhook
+		"answered_agent_number",
+		"answer_agent_number",
+		"caller_id_number",
+		"agent_number",
+	]))
+
+
+def _extract_duration(payload):
+	# prefer billsec first (talktime)
+	v = _pick(payload, ["billsec", "duration"])
+	if v in (None, ""):
+		return None
+	try:
+		return float(v)
+	except Exception:
+		return None
+
+
+def _extract_start(payload):
+	return _parse_dt(_pick(payload, ["start_stamp"]))
+
+
+def _extract_answer(payload):
+	return _parse_dt(_pick(payload, ["answer_stamp"]))
+
+
+def _extract_end(payload):
+	return _parse_dt(_pick(payload, ["end_stamp"]))
+
+
+def _extract_recording(payload):
+	v = _pick(payload, ["recording_url"])
+	return str(v).strip()[:140] if v else None
+
+
+def _extract_hangup_cause(payload):
+	"""Extract hangup cause/reason from webhook"""
+	return _pick(payload, [
+		"hangup_cause_description",
+		"hangupcause_desc",
+		"reason_key",
+		"hangup_cause_key"
+	])
+
+
+def _extract_call_connected(payload):
+	"""Check if call was successfully connected"""
+	val = payload.get("call_connected")
+	if isinstance(val, str):
+		return val.strip().lower() in ("1", "true", "yes")
+	return bool(val) if val is not None else None
+
+
+def _extract_answered_agent(payload):
+	"""Get the agent who answered the call"""
+	# answered_agent can be a dict with 'name' or 'agent_number'
+	answered_agent = payload.get("answered_agent")
+	if isinstance(answered_agent, dict):
+		return answered_agent.get("name") or answered_agent.get("agent_number")
+	# Or it can be a string
+	return _pick(payload, ["answered_agent", "answered_agent_name"])
+
+
+def _extract_missed_agent(payload):
+	"""Get the agent who missed the call"""
+	return _pick(payload, ["missed_agent"])
+
+
+def _to_int(x):
+	try:
+		return int(float(str(x).strip()))
+	except Exception:
+		return 0
+
+
+def _map_status(payload):
+	"""
+	Robust status mapping for Smartflow outbound webhooks.
+
+	Uses multiple indicators to determine final status:
+	- answered_agent: agent who answered
+	- missed_agent: agent who missed
+	- call_connected: boolean for successful connection
+	- billsec/duration: actual talk time
+	- hangup_cause: reason for call end
+	- end_stamp: call ended timestamp
+	"""
+	call_status = (payload.get("call_status") or "").strip().lower()
+
+	end_dt = _extract_end(payload)
+	answer_dt = _extract_answer(payload)
+
+	billsec = _to_int(_pick(payload, ["billsec"]) or 0)
+	duration = _to_int(_pick(payload, ["duration"]) or 0)
+
+	# NEW: Extract additional indicators
+	call_connected = _extract_call_connected(payload)
+	answered_agent = _extract_answered_agent(payload)
+	missed_agent = _extract_missed_agent(payload)
+	hangup_cause = _extract_hangup_cause(payload)
+
+	# Debug logging
+	frappe.logger().info(
+		f"[SMARTFLOW STATUS MAPPING] call_status='{call_status}', "
+		f"end_dt={end_dt}, answer_dt={answer_dt}, billsec={billsec}, duration={duration}, "
+		f"call_connected={call_connected}, answered_agent='{answered_agent}', "
+		f"missed_agent='{missed_agent}', hangup_cause='{hangup_cause}'"
+	)
+
+	# Provider statuses for in-progress calls
+	if call_status in ("ringing", "agent_ringing"):
+		frappe.logger().info("[SMARTFLOW STATUS MAPPING] Returning: Ringing")
+		return "Ringing"
+
+	if call_status in ("answered", "connected", "in_progress", "active"):
+		frappe.logger().info("[SMARTFLOW STATUS MAPPING] Returning: In Progress")
+		return "In Progress"
+
+	# Explicit provider status for completed
+	if call_status in ("completed", "hangup", "ended", "disconnected"):
+		# Check if call was actually answered and connected
+		if answered_agent and (answer_dt or call_connected or billsec > 0):
+			frappe.logger().info("[SMARTFLOW STATUS MAPPING] Returning: Completed (answered with agent)")
+			return "Completed"
+		
+		# Check if explicitly missed
+		if missed_agent:
+			frappe.logger().info("[SMARTFLOW STATUS MAPPING] Returning: No answer (missed agent)")
+			return "No answer"
+		
+		# No answer/duration = not answered
+		frappe.logger().info("[SMARTFLOW STATUS MAPPING] Returning: No answer (ended without answer)")
+		return "No answer"
+
+	# Explicit no answer statuses
+	if call_status in ("no_answer", "missed", "not_answered"):
+		frappe.logger().info("[SMARTFLOW STATUS MAPPING] Returning: No answer")
+		return "No answer"
+
+	if call_status in ("failed",):
+		frappe.logger().info("[SMARTFLOW STATUS MAPPING] Returning: Failed")
+		return "Failed"
+
+	if call_status in ("busy",):
+		frappe.logger().info("[SMARTFLOW STATUS MAPPING] Returning: Busy")
+		return "Busy"
+
+	if call_status in ("cancelled", "canceled"):
+		frappe.logger().info("[SMARTFLOW STATUS MAPPING] Returning: Cancelled")
+		return "Cancelled"
+
+	# FINAL heuristic when call has ended
+	if end_dt:
+		# Check hangup cause for specific reasons
+		if hangup_cause:
+			cause_lower = str(hangup_cause).lower()
+			if "cancel" in cause_lower or "user" in cause_lower:
+				frappe.logger().info(f"[SMARTFLOW STATUS MAPPING] Returning: Cancelled (hangup_cause: {hangup_cause})")
+				return "Cancelled"
+			if "busy" in cause_lower:
+				frappe.logger().info(f"[SMARTFLOW STATUS MAPPING] Returning: Busy (hangup_cause: {hangup_cause})")
+				return "Busy"
+			if "no answer" in cause_lower or "missed" in cause_lower or "timeout" in cause_lower:
+				frappe.logger().info(f"[SMARTFLOW STATUS MAPPING] Returning: No answer (hangup_cause: {hangup_cause})")
+				return "No answer"
+		
+		# Check if answered with duration
+		if answered_agent and (answer_dt or call_connected or billsec > 0 or duration > 0):
+			frappe.logger().info("[SMARTFLOW STATUS MAPPING] Returning: Completed (heuristic - answered with duration)")
+			return "Completed"
+		
+		# Check if missed
+		if missed_agent:
+			frappe.logger().info("[SMARTFLOW STATUS MAPPING] Returning: No answer (heuristic - missed)")
+			return "No answer"
+		
+		# Has duration but no answered_agent = still completed
+		if billsec > 0 or duration > 0:
+			frappe.logger().info("[SMARTFLOW STATUS MAPPING] Returning: Completed (heuristic - has duration)")
+			return "Completed"
+		
+		# Ended without answer
+		frappe.logger().info("[SMARTFLOW STATUS MAPPING] Returning: No answer (heuristic - ended without answer/duration)")
+		return "No answer"
+
+	# Call in progress if agent answered
+	if payload.get("answered_agent_number") or payload.get("answer_agent_number") or answered_agent:
+		frappe.logger().info("[SMARTFLOW STATUS MAPPING] Returning: In Progress (has answered agent)")
+		return "In Progress"
+
+	frappe.logger().info("[SMARTFLOW STATUS MAPPING] Returning: Initiated (default)")
+	return "Initiated"
+
+
+
+def validate_webhook_token():
+	"""
+	Validate webhook token from Smartflo.
+	
+	Smartflo can send auth in multiple formats:
+	1. Authorization: <api_key>:<api_secret>
+	2. Authorization: Bearer <api_key>:<api_secret>
+	3. Authorization: token <api_key>:<api_secret>
+	4. X-Auth-Token: <api_key>:<api_secret>
+	5. X-Webhook-Token: <api_key>:<api_secret>
+	"""
+
+	try:
+		settings = TataTeleSettings.get_settings()
+		
+		if not settings:
+			frappe.logger().error("[SMARTFLOW AUTH] Settings not found")
+			return False
+		
+		expected = (settings.get_password("webhook_token") or "").strip()
+		
+		if not expected:
+			frappe.logger().warning("[SMARTFLOW AUTH] No webhook token configured - allowing all requests")
+			return True
+		
+		# Try multiple header names
+		auth_header = (
+			frappe.request.headers.get("Authorization") or
+			frappe.request.headers.get("X-Auth-Token") or
+			frappe.request.headers.get("X-Webhook-Token") or
+			""
+		).strip()
+		
+		if not auth_header:
+			frappe.logger().error("[SMARTFLOW AUTH] No authorization header found")
+			# Log all headers for debugging
+			headers_dict = {k: v for k, v in frappe.request.headers.items()}
+			frappe.logger().error(f"[SMARTFLOW AUTH] All headers: {headers_dict}")
+			return False
+		
+		# Extract token from various formats
+		received_token = auth_header
+		
+		# Remove "Bearer " prefix if present
+		if received_token.lower().startswith("bearer "):
+			received_token = received_token[7:].strip()
+		
+		# Remove "token " prefix if present
+		if received_token.lower().startswith("token "):
+			received_token = received_token[6:].strip()
+		
+		# Compare tokens
+		if received_token == expected:
+			frappe.logger().info("[SMARTFLOW AUTH] Token validated successfully")
+			return True
+		else:
+			frappe.logger().error(
+				f"[SMARTFLOW AUTH] Token mismatch - "
+				f"Expected length: {len(expected)}, Received length: {len(received_token)}"
+			)
+			# TEMPORARY: Log full tokens for debugging (remove after fixing)
+			frappe.logger().error(f"[SMARTFLOW AUTH DEBUG] Expected token: {expected}")
+			frappe.logger().error(f"[SMARTFLOW AUTH DEBUG] Received token: {received_token}")
+			
+			# Also log partial for quick comparison
+			if len(expected) > 8:
+				frappe.logger().error(f"[SMARTFLOW AUTH] Expected starts with: {expected[:4]}...{expected[-4:]}")
+			if len(received_token) > 8:
+				frappe.logger().error(f"[SMARTFLOW AUTH] Received starts with: {received_token[:4]}...{received_token[-4:]}")
+			return False
+
+	except Exception as e:
+		frappe.logger().error(f"[SMARTFLOW AUTH] Exception: {str(e)}")
+		frappe.log_error(frappe.get_traceback(), "Smartflow Auth Error")
+		return False
+
+
+def _find_or_create_call_log(ref_id, agent_no=None, customer_no=None):
+	"""
+	tabCRM Call Log has UNIQUE column `id`.
+We store outbound ref_id in `id` so all webhook events update same row.
+	"""
+	name = frappe.db.get_value("CRM Call Log", {"id": ref_id}, "name")
+	if name:
+		return frappe.get_doc("CRM Call Log", name)
+
+	doc = frappe.new_doc("CRM Call Log")
+	doc.telephony_medium = "Tata Tele"
+	doc.medium = "Smartflow"
+	doc.type = "Outgoing"
+	doc.id = ref_id
+	doc.status = "Initiated"
+	doc.start_time = frappe.utils.now_datetime()
+	
+	# Set caller to current user ONLY if they exist in User doctype
+	try:
+		current_user = frappe.session.user
+		if current_user and current_user != "Guest":
+			# Verify user exists before setting
+			if frappe.db.exists("User", current_user):
+				doc.caller = current_user
+			else:
+				frappe.logger().warning(f"[SMARTFLOW] User {current_user} not found, skipping caller field")
+	except Exception as e:
+		frappe.logger().warning(f"[SMARTFLOW] Could not set caller: {str(e)}")
+
+	# store numbers as last 10 digits
+	agent_no = _only_last_10(agent_no)
+	customer_no = _only_last_10(customer_no)
+
+	if agent_no:
+		# "from" is reserved: use db.set_value after insert OR setattr safely
+		try:
+			setattr(doc, "from", agent_no)
+		except Exception:
+			pass
+	if customer_no:
+		try:
+			setattr(doc, "to", customer_no)
+		except Exception:
+			pass
+
+	# optional linking by customer number
+	try:
+		if customer_no:
+			contact = get_contact_by_phone_number(customer_no) or {}
+			if contact.get("name"):
+				doc.reference_doctype = "Contact"
+				doc.reference_docname = contact.get("name")
+				if contact.get("lead"):
+					doc.reference_doctype = "CRM Lead"
+					doc.reference_docname = contact.get("lead")
+				elif contact.get("deal"):
+					doc.reference_doctype = "CRM Deal"
+					doc.reference_docname = contact.get("deal")
+	except Exception as e:
+		frappe.logger().warning(f"[SMARTFLOW] Could not link contact: {str(e)}")
+
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+
+	# ensure "from" is saved (safe for reserved field)
+	if agent_no:
+		frappe.db.set_value("CRM Call Log", doc.name, "from", agent_no)
+	if customer_no:
+		frappe.db.set_value("CRM Call Log", doc.name, "to", customer_no)
+	frappe.db.commit()
+
+	return frappe.get_doc("CRM Call Log", doc.name)
+
+
+def _publish_realtime(ref_id, doc, payload):
+	"""Publish real-time updates to frontend via socket"""
+	data = {
+		"ref_id": ref_id,
+		"status": doc.status,
+		"duration": doc.duration,
+		"recording_url": doc.recording_url,
+		"call_status": payload.get("call_status"),
+		"call_id": _extract_call_id(payload),
+	}
+	
+	frappe.publish_realtime("tata_tele_call", data)
+	
+	# Also log for debugging
+	frappe.logger().info(f"[TATA TELE REALTIME] Published: {data}")
+
+
+# =========================================================
+# Click to call (Outbound)
+# =========================================================
 
 @frappe.whitelist()
 def make_a_call(to_number, from_number=None):
 	"""
-	Make a call using Tata Teleservices API.
-	
-	Args:
-		to_number: Phone number to call (destination_number/recipient)
-		from_number: Phone number to call from (optional, will use default agent_number)
-	
-	Returns:
-		dict: Call initiation response from API
+	1) Generate ref_id
+	2) Insert CRM Call Log immediately with id=ref_id
+	3) Hit click_to_call API with ref_id
+	4) Return ref_id + agent_number/caller_id/data for frontend
 	"""
-	# Debug: Log all incoming parameters
-	frappe.logger().info("=" * 80)
-	frappe.logger().info("[TATA TELE] Make Call Request Started")
-	frappe.logger().info(f"[TATA TELE] Input Parameters:")
-	frappe.logger().info(f"  - to_number (destination): {to_number}")
-	frappe.logger().info(f"  - from_number (optional): {from_number}")
-	
 	if not is_integration_enabled():
-		frappe.logger().warning("[TATA TELE] Integration is not enabled")
-		frappe.throw(
-			_("Please setup Tata Tele integration"),
-			title=_("Integration Not Enabled")
-		)
+		frappe.throw(_("Please setup Tata Tele integration"), title=_("Integration Not Enabled"))
 
 	settings = TataTeleSettings.get_settings()
 	if not settings:
-		frappe.logger().warning("[TATA TELE] Settings not configured")
-		frappe.throw(
-			_("Tata Tele Settings not configured"),
-			title=_("Configuration Missing")
-		)
+		frappe.throw(_("Tata Tele Settings not configured"), title=_("Configuration Missing"))
 
-	# Debug: Log settings
-	frappe.logger().info(f"[TATA TELE] Settings Retrieved:")
-	frappe.logger().info(f"  - Enabled: {settings.enabled}")
-	frappe.logger().info(f"  - API Endpoint: {settings.api_endpoint}")
-	frappe.logger().info(f"  - Account ID: {settings.account_id}")
-	frappe.logger().info(f"  - Phone Number: {settings.phone_number}")
-	frappe.logger().info(f"  - Agent Number: {settings.agent_number}")
-	frappe.logger().info(f"  - Caller ID: {settings.caller_id}")
-
-	# Get agent number and caller ID from Smartflo Agent Mapping for the current user
-	agent_number = None
-	caller_id = None
+	# per-user mapping (optional)
+	agent_number = settings.agent_number
+	caller_id = settings.caller_id or settings.agent_number
 
 	if frappe.db.exists("DocType", "Smartflo Agent Mapping"):
 		mapping = frappe.db.get_value(
@@ -71,349 +491,422 @@ def make_a_call(to_number, from_number=None):
 			as_dict=True
 		)
 		if mapping:
-			agent_number = mapping.agent_number
-			caller_id = mapping.caller_id
-			frappe.logger().info(f"[TATA TELE] Found per-user mapping for {frappe.session.user}")
+			agent_number = mapping.agent_number or agent_number
+			caller_id = mapping.caller_id or caller_id
 
-	# Fallback to settings if not found in mapping
-	if not agent_number:
-		agent_number = settings.agent_number
-		frappe.logger().info(f"[TATA TELE] Using global agent number")
-
-	if not caller_id:
-		caller_id = settings.caller_id or settings.agent_number
-		frappe.logger().info(f"[TATA TELE] Using global caller ID")
-
-	if not agent_number:
-		frappe.logger().warning("[TATA TELE] Agent number not found")
-		frappe.throw(
-			_("Agent number not found. Please setup Smartflo Agent Mapping for your user."),
-			title=_("Agent Number Missing")
-		)
-
-	if not caller_id:
-		frappe.logger().warning("[TATA TELE] Caller ID not found")
-		frappe.throw(
-			_("Caller ID not found. Please setup Smartflo Agent Mapping for your user."),
-			title=_("Caller ID Missing")
-		)
-
-	# Validate destination number
-	destination_number = to_number
-	if not destination_number:
-		frappe.logger().warning("[TATA TELE] Destination number is empty")
+	if not to_number:
 		frappe.throw(_("Destination number is required"), title=_("Invalid Input"))
 
 	api_endpoint = settings.api_endpoint
 	api_token = settings.get_password("api_token")
 
-	frappe.logger().info(f"[TATA TELE] Call Details:")
-	frappe.logger().info(f"  - Agent Number: {agent_number}")
-	frappe.logger().info(f"  - Destination Number: {destination_number}")
-	frappe.logger().info(f"  - Caller ID: {caller_id}")
-	frappe.logger().info(f"  - API Endpoint: {api_endpoint}")
+	ref_id = str(uuid.uuid4())
 
-	try:
-		# Prepare request payload using Tata Tele SmartFlow format
-		# agent_number: The agent's virtual number (user's number in Tata system)
-		# destination_number: The contact's phone number to call
-		# caller_id: The number that will appear on recipient's phone
-		payload = {
-			"agent_number": agent_number,
-			"destination_number": destination_number,
-			"caller_id": caller_id,
-			"async": 1,
-		}
-
-		frappe.logger().info(f"[TATA TELE] Request Payload:")
-		frappe.logger().info(json.dumps(payload, indent=2))
-
-		# Prepare headers with authentication
-		headers = {
-			"Authorization": f"Bearer {api_token}",
-			"Content-Type": "application/json",
-		}
-
-		frappe.logger().info(f"[TATA TELE] Request Headers:")
-		frappe.logger().info(f"  - Authorization: Bearer ****{api_token[-10:] if api_token else 'NONE'}")
-		frappe.logger().info(f"  - Content-Type: application/json")
-
-		# Make API request to Tata Teleservices
-		frappe.logger().info(f"[TATA TELE] Sending request to: {api_endpoint}")
-		response = requests.post(
-			api_endpoint,
-			json=payload,
-			headers=headers,
-			timeout=60
-		)
-
-		frappe.logger().info(f"[TATA TELE] API Response Received:")
-		frappe.logger().info(f"  - Status Code: {response.status_code}")
-		frappe.logger().info(f"  - Response Body: {response.text}")
-
-		if response.status_code not in [200, 201]:
-			error_message = f"Tata Tele API Error: {response.status_code} - {response.text}"
-			frappe.logger().error(f"[TATA TELE] {error_message}")
-			frappe.log_error(
-				message=error_message,
-				title="Tata Tele API Error"
-			)
-			# Extract message from response if it's JSON
-			try:
-				resp_json = response.json()
-				msg = resp_json.get("message") or resp_json.get("error") or response.text
-			except:
-				msg = response.text
-
-			frappe.throw(
-				_("Tata Tele API Error: {0}").format(msg),
-				title=_("API Error")
-			)
-
-		response_data = response.json()
-		frappe.logger().info(f"[TATA TELE] Response Data Parsed:")
-		frappe.logger().info(json.dumps(response_data, indent=2))
-		
-		# Extract call ID from response or generate a unique one
-		call_id = response_data.get("call_id") or response_data.get("id") or response_data.get("request_id") or response_data.get("CallSid")
-			
-		if not call_id:
-			# Generate a unique ID using timestamp and phone number
-			import time
-			call_id = f"TATA-{int(time.time())}-{destination_number[-4:]}"
-			frappe.logger().info(f"[TATA TELE] No call_id in response, generated: {call_id}")
-		
-		frappe.logger().info(f"[TATA TELE] Using Call ID: {call_id}")
-		
-		# Create call log
-		call_log = frappe.get_doc({
-			"doctype": "CRM Call Log",
-			"telephony_medium": "Tata Tele",
-			"type": "Outgoing",
-			"from": agent_number,
-			"to": destination_number,
-			"status": "Initiated",
-			"id": call_id,
-		})
-
-		frappe.logger().info(f"[TATA TELE] Call Log Created:")
-		frappe.logger().info(f"  - Call ID: {call_log.id}")
-		frappe.logger().info(f"  - Status: {call_log.status}")
-		frappe.logger().info(f"  - From: {getattr(call_log, 'from')}")
-		frappe.logger().info(f"  - To: {getattr(call_log, 'to')}")
-
-		# Link call log with lead/deal/contact
-		contact = get_contact_by_phone_number(destination_number)
-		frappe.logger().info(f"[TATA TELE] Contact Search Results:")
-		frappe.logger().info(json.dumps(contact or {}, indent=2))
-		if contact.get("name"):
-			doctype = "Contact"
-			docname = contact.get("name")
-			if contact.get("lead"):
-				doctype = "CRM Lead"
-				docname = contact.get("lead")
-				frappe.logger().info(f"[TATA TELE] Linked to Lead: {docname}")
-			elif contact.get("deal"):
-				doctype = "CRM Deal"
-				docname = contact.get("deal")
-				frappe.logger().info(f"[TATA TELE] Linked to Deal: {docname}")
-			else:
-				frappe.logger().info(f"[TATA TELE] Linked to Contact: {docname}")
-			
-			call_log.reference_doctype = doctype
-			call_log.reference_docname = docname
-		else:
-			frappe.logger().info(f"[TATA TELE] No contact found for number: {destination_number}")
-
-		frappe.logger().info(f"[TATA TELE] Saving Call Log...")
-		call_log.save(ignore_permissions=True)
-		frappe.db.commit()
-		frappe.logger().info(f"[TATA TELE] Call Log Saved Successfully!")
-
-		frappe.logger().info(f"[TATA TELE] Returning Success Response...")
-		response_json = {
-			"ok": True,
-			"message": "Call initiated successfully",
-			"call_id": call_id,
-			"agent_number": agent_number,
-			"caller_id": caller_id,
-			"data": response_data
-		}
-		frappe.logger().info(json.dumps(response_json, indent=2))
-		frappe.logger().info("=" * 80)
-		return response_json
-
-	except requests.exceptions.RequestException as e:
-		frappe.logger().error(f"[TATA TELE] Request Exception: {str(e)}")
-		frappe.log_error(
-			message=str(e),
-			title="Tata Tele Request Error"
-		)
-		frappe.logger().error("=" * 80)
-		frappe.throw(
-			_("Network error while connecting to Tata Tele service"),
-			title=_("Request Failed")
-		)
-	except Exception as e:
-		frappe.logger().error(f"[TATA TELE] General Exception: {str(e)}")
-		frappe.logger().error(f"[TATA TELE] Traceback: {frappe.get_traceback()}")
-		frappe.log_error(
-			message=str(e),
-			title="Tata Tele Integration Error"
-		)
-		frappe.logger().error("=" * 80)
-		frappe.throw(
-			_("An error occurred while making the call"),
-			title=_("Error")
-		)
-
-
-@frappe.whitelist(allow_guest=True)
-def webhook_handler(**kwargs):
-	"""
-	Handle incoming webhooks from Tata Teleservices API.
-	This is called when call status changes.
-	
-	Webhook URL: /api/method/crm.integrations.tata_tele.handler.webhook_handler
-	"""
-	if not is_integration_enabled():
-		frappe.log_error(
-			message="Webhook received but Tata Tele integration is disabled",
-			title="Tata Tele Webhook - Integration Disabled"
-		)
-		return {"ok": False, "message": "Integration not enabled"}
-
-	# Validate Webhook Token if configured
-	webhook_token = TataTeleSettings.get_webhook_token()
-	if webhook_token:
-		# Check for token in headers (common for webhooks)
-		received_token = (
-			frappe.request.headers.get("X-Webhook-Token") or 
-			frappe.request.headers.get("Authorization") or
-			kwargs.get("token")
-		)
-		
-		if received_token and "Bearer " in received_token:
-			received_token = received_token.replace("Bearer ", "")
-			
-		if received_token != webhook_token:
-			frappe.log_error(
-				message=f"Invalid webhook token received: {received_token}",
-				title="Tata Tele Webhook - Auth Failed"
-			)
-			return {"ok": False, "message": "Invalid token"}
-
-	request_log = create_request_log(
-		kwargs,
-		request_description="Tata Tele Call Webhook",
-		service_name="Tata Tele",
-		request_headers=frappe.request.headers,
-		is_remote_request=1,
+	# create call log now (store last 10 digits)
+	doc = _find_or_create_call_log(
+		ref_id,
+		agent_no=_only_last_10(agent_number),
+		customer_no=_only_last_10(to_number)
 	)
 
+	payload = {
+		"agent_number": agent_number,
+		"destination_number": to_number,
+		"caller_id": caller_id,
+		"async": 1,
+		"ref_id": ref_id,
+	}
+
+	headers = {"Authorization": f"Bearer {api_token}", "Content-Type": "application/json"}
+
+	resp = requests.post(api_endpoint, json=payload, headers=headers, timeout=60)
+	if resp.status_code not in (200, 201):
+		frappe.db.set_value("CRM Call Log", doc.name, "status", "Failed")
+		frappe.db.commit()
+		frappe.throw(_("Tata Tele API Error: {0}").format(resp.text), title=_("API Error"))
+
+	data = resp.json() if resp.text else {}
+	call_id = data.get("call_id") or data.get("id") or data.get("request_id")
+
+	# Save provider call_id in note (no dedicated column in your table)
+	if call_id:
+		frappe.db.set_value("CRM Call Log", doc.name, "note", f"smartflo_call_id={call_id}")
+		frappe.db.commit()
+
+	# Publish initial status to frontend
+	frappe.publish_realtime("tata_tele_call", {
+		"ref_id": ref_id,
+		"status": "Initiated",
+		"call_id": call_id,
+		"duration": 0,
+	})
+
+	return {
+		"ok": True,
+		"success": True,
+		"message": "Originate successfully queued",
+		"ref_id": ref_id,
+		"call_id": call_id or None,
+		"agent_number": agent_number,
+		"caller_id": caller_id,
+		"data": data,
+	}
+
+
+# =========================================================
+# Single webhook endpoint (3 outbound events)
+# =========================================================
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def webhook_handler():
+	frappe.local.no_csrf = True
+
 	try:
-		request_log.status = "Completed"
-		payload = frappe._dict(kwargs)
+		if not is_integration_enabled():
+			frappe.logger().warning("[SMARTFLOW] Integration not enabled")
+			frappe.local.response.http_status_code = 503
+			return {"success": False, "message": "Integration not enabled"}
 
-		# Publish real-time event for UI updates
-		frappe.publish_realtime("tata_tele_call", payload)
+		# Validate authentication
+		if not validate_webhook_token():
+			frappe.logger().error("[SMARTFLOW] Webhook authentication FAILED - returning 401")
+			frappe.local.response.http_status_code = 401
+			return {"success": False, "error": "Unauthorized", "message": "Invalid or missing webhook token"}
 
-		# Extract call information
-		call_id = payload.get("call_id") or payload.get("id")
-		status = payload.get("status") or payload.get("call_status")
+		frappe.logger().info("[SMARTFLOW] Webhook authenticated successfully")
 
-		if not call_id:
-			frappe.log_error(
-				message="No call_id in webhook payload",
-				title="Tata Tele Webhook - Missing ID"
-			)
-			return {"ok": False, "message": "Missing call_id"}
+		payload = _get_json()
 
-		# Update call log with new status
-		if frappe.db.exists("CRM Call Log", call_id):
-			call_log = frappe.get_doc("CRM Call Log", call_id)
+		# DEBUG: print full webhook payload
+		frappe.logger().info("[SMARTFLOW OUTBOUND WEBHOOK] Payload:\n" + json.dumps(payload, indent=2))
+
+		# DEBUG: quick key fields
+		frappe.logger().info(
+			"[SMARTFLOW] call_status="
+			+ str(payload.get("call_status"))
+			+ " direction=" + str(payload.get("direction"))
+			+ " end_stamp=" + str(payload.get("end_stamp"))
+			+ " answer_stamp=" + str(payload.get("answer_stamp"))
+			+ " answer_agent_number=" + str(payload.get("answer_agent_number"))
+			+ " billsec=" + str(payload.get("billsec"))
+		)
+
+		ref_id = _extract_ref_id(payload)
+		
+		# Enhanced logging for debugging
+		frappe.logger().info(f"[SMARTFLOW] Extracted ref_id: {ref_id}")
+		frappe.logger().info(f"[SMARTFLOW] Payload keys: {list(payload.keys())}")
+		
+		if not ref_id:
+			# Log the full payload for debugging when ref_id is missing
+			frappe.logger().warning(f"[SMARTFLOW] ref_id missing! This might be an inbound call or test webhook.")
+			frappe.logger().warning(f"[SMARTFLOW] Payload: {json.dumps(payload, indent=2)}")
 			
-			# Map Tata Tele status to our status
-			status_mapping = {
-				"initiated": "Initiated",
-				"ringing": "Ringing",
-				"connected": "Connected",
-				"active": "Active",
-				"completed": "Completed",
-				"ended": "Completed",
-				"failed": "Failed",
-				"no_answer": "No answer",
-				"busy": "Busy",
-				"cancelled": "Cancelled",
+			# Check if this is an inbound call (has different structure)
+			call_type = payload.get("call_type") or payload.get("type") or payload.get("direction") or "unknown"
+			frappe.logger().info(f"[SMARTFLOW] Call type/direction: {call_type}")
+			
+			# Return 200 OK to acknowledge receipt, but don't process
+			return {
+				"success": True, 
+				"message": "Webhook received but ref_id missing - might be inbound call or test",
+				"call_type": call_type,
+				"payload_keys": list(payload.keys())
 			}
 
-			call_log.status = status_mapping.get(status, status)
-			
-			# Update additional fields from webhook
-			if payload.get("duration"):
-				call_log.duration = payload.get("duration")
-			
-			call_log.save(ignore_permissions=True)
-			frappe.db.commit()
+		agent_no = _extract_agent(payload)
+		customer_no = _extract_customer(payload)
 
-		return {"ok": True, "message": "Webhook processed"}
+		# find/create by id=ref_id
+		doc = _find_or_create_call_log(ref_id, agent_no=agent_no, customer_no=customer_no)
 
-	except Exception:
-		request_log.status = "Failed"
-		request_log.error = frappe.get_traceback()
-		frappe.db.rollback()
-		frappe.log_error(
-			title="Error processing Tata Tele webhook"
+		frappe.logger().info(f"[SMARTFLOW] Found/Created Call Log: {doc.name}, Current Status: {doc.status}")
+
+		new_status = _map_status(payload)
+		
+		frappe.logger().info(f"[SMARTFLOW] Mapped Status: {new_status}")
+
+		start_time = _extract_start(payload) or doc.start_time or frappe.utils.now_datetime()
+		end_time = _extract_end(payload)
+		duration = _extract_duration(payload)
+		recording_url = _extract_recording(payload)
+		call_id = _extract_call_id(payload)
+		
+		# Extract additional fields
+		answered_agent = _extract_answered_agent(payload)
+		missed_agent = _extract_missed_agent(payload)
+		hangup_cause = _extract_hangup_cause(payload)
+		call_connected = _extract_call_connected(payload)
+		
+		frappe.logger().info(
+			f"[SMARTFLOW] Extracted - Duration: {duration}, End Time: {end_time}, "
+			f"Recording: {recording_url}, Answered Agent: {answered_agent}, "
+			f"Missed Agent: {missed_agent}, Hangup Cause: {hangup_cause}, "
+			f"Call Connected: {call_connected}"
 		)
-		frappe.db.commit()
-		return {"ok": False, "message": "Error processing webhook"}
-	finally:
-		request_log.save(ignore_permissions=True)
-		frappe.db.commit()
 
+		updates = {"status": new_status}
+
+		# numbers (always last 10 digits)
+		if agent_no:
+			updates["from"] = _only_last_10(agent_no)
+		if customer_no:
+			updates["to"] = _only_last_10(customer_no)
+
+		# start time only if empty
+		if not doc.start_time:
+			updates["start_time"] = start_time
+
+		# final state => end time
+		if new_status in ("Completed", "No answer", "Failed", "Busy", "Cancelled"):
+			updates["end_time"] = end_time or frappe.utils.now_datetime()
+
+		# duration: save on final states
+		if duration is not None and new_status in ("Completed", "No answer"):
+			updates["duration"] = duration
+
+		# recording: only on completed
+		if recording_url and new_status == "Completed":
+			updates["recording_url"] = recording_url
+
+		# save call_id and hangup_cause into note (max 140 chars for Text field)
+		note_parts = []
+		if call_id:
+			note_parts.append(f"call_id={call_id}")
+		if hangup_cause:
+			# Truncate hangup cause if too long
+			cause_str = str(hangup_cause)[:50]
+			note_parts.append(f"hangup={cause_str}")
+		if answered_agent:
+			# Truncate agent name if too long
+			agent_str = str(answered_agent)[:30]
+			note_parts.append(f"agent={agent_str}")
+		if missed_agent:
+			missed_str = str(missed_agent)[:30]
+			note_parts.append(f"missed={missed_str}")
+		
+		if note_parts:
+			# Join and ensure total length is under 140 chars
+			note_text = ", ".join(note_parts)
+			updates["note"] = note_text[:140]
+
+		# apply updates safely (because "from" is reserved)
+		for k, v in updates.items():
+			if k == "from":
+				frappe.db.set_value("CRM Call Log", doc.name, "from", v)
+			else:
+				frappe.db.set_value("CRM Call Log", doc.name, k, v)
+
+		frappe.db.commit()
+		doc.reload()
+		
+		frappe.logger().info(f"[SMARTFLOW] Updates Applied - Final Status: {doc.status}, Duration: {doc.duration}, End Time: {doc.end_time}")
+
+		_publish_realtime(ref_id, doc, payload)
+
+		return {
+			"success": True,
+			"ref_id": ref_id,
+			"status": doc.status,
+			"duration": doc.duration,
+			"recording_url": doc.recording_url,
+		}
+	
+	except Exception as e:
+		frappe.logger().error(f"[SMARTFLOW] Exception in webhook_handler: {str(e)}")
+		frappe.log_error(frappe.get_traceback(), "Smartflow Webhook Error")
+		frappe.local.response.http_status_code = 500
+		return {
+			"success": False,
+			"error": "Internal server error",
+			"message": str(e)
+		}
+
+
+# @frappe.whitelist(allow_guest=True, methods=["POST"])
+# def webhook_handler():
+# 	frappe.local.no_csrf = True
+
+# 	print("\n================ SMARTFLOW WEBHOOK RECEIVED ================\n")
+
+# 	if not is_integration_enabled():
+# 		print("❌ Integration not enabled")
+# 		return {"success": False, "message": "Integration not enabled"}
+
+# 	auth_header = frappe.request.headers.get("Authorization")
+# 	print("🔐 Authorization Header:", auth_header)
+
+# 	if not validate_webhook_token():
+# 		print("❌ Webhook token validation FAILED")
+# 		frappe.local.response.http_status_code = 401
+# 		return {"success": False, "error": "Unauthorized"}
+
+# 	print("✅ Webhook token validated successfully")
+
+# 	payload = _get_json()
+
+# 	print("\n📦 FULL PAYLOAD RECEIVED:")
+# 	print(json.dumps(payload, indent=2))
+# 	print("\n------------------------------------------------------------")
+
+# 	ref_id = _extract_ref_id(payload)
+# 	print("🔎 Extracted ref_id:", ref_id)
+
+# 	if not ref_id:
+# 		print("❌ ref_id missing in webhook")
+# 		frappe.local.response.http_status_code = 400
+# 		return {"success": False, "error": "ref_id missing"}
+
+# 	agent_no = _extract_agent(payload)
+# 	customer_no = _extract_customer(payload)
+
+# 	print("📞 Agent Number (cleaned):", agent_no)
+# 	print("📱 Customer Number (cleaned):", customer_no)
+
+# 	doc = _find_or_create_call_log(ref_id, agent_no=agent_no, customer_no=customer_no)
+
+# 	print("📄 Found/Created Call Log:", doc.name)
+
+# 	new_status = _map_status(payload)
+# 	print("📌 Mapped Status:", new_status)
+
+# 	start_time = _extract_start(payload)
+# 	answer_time = _extract_answer(payload)
+# 	end_time = _extract_end(payload)
+# 	duration = _extract_duration(payload)
+# 	recording_url = _extract_recording(payload)
+# 	call_id = _extract_call_id(payload)
+
+# 	print("⏱ Start Time:", start_time)
+# 	print("⏱ Answer Time:", answer_time)
+# 	print("⏱ End Time:", end_time)
+# 	print("⏱ Duration:", duration)
+# 	print("🎧 Recording URL:", recording_url)
+# 	print("🆔 Provider Call ID:", call_id)
+
+# 	print("\n---------------- APPLYING UPDATES ----------------")
+
+# 	updates = {"status": new_status}
+
+# 	if agent_no:
+# 		updates["from"] = agent_no
+
+# 	if customer_no:
+# 		updates["to"] = customer_no
+
+# 	if new_status in ("Completed", "No answer", "Failed", "Busy", "Cancelled"):
+# 		updates["end_time"] = end_time or frappe.utils.now_datetime()
+
+# 	if duration is not None and new_status in ("Completed", "No answer"):
+# 		updates["duration"] = duration
+
+# 	if recording_url and new_status == "Completed":
+# 		updates["recording_url"] = recording_url
+
+# 	if call_id:
+# 		updates["note"] = f"smartflo_call_id={call_id}"
+
+# 	print("📥 Final Updates Dict:")
+# 	print(json.dumps(updates, indent=2))
+
+# 	# Apply updates
+# 	for k, v in updates.items():
+# 		if k == "from":
+# 			frappe.db.set_value("CRM Call Log", doc.name, "from", v)
+# 		else:
+# 			frappe.db.set_value("CRM Call Log", doc.name, k, v)
+
+# 	frappe.db.commit()
+# 	doc.reload()
+
+# 	print("\n✅ FINAL STATUS IN DB:", doc.status)
+# 	print("✅ FINAL DURATION IN DB:", doc.duration)
+# 	print("============================================================\n")
+
+# 	_publish_realtime(ref_id, doc, payload)
+
+# 	return {
+# 		"success": True,
+# 		"ref_id": ref_id,
+# 		"status": doc.status,
+# 		"duration": doc.duration,
+# 		"recording_url": doc.recording_url,
+# 	}
+
+
+# =========================================================
+# Hangup Call (Outbound Cancel)
+# =========================================================
 
 @frappe.whitelist()
-def validate_connection():
+def hangup_call(call_id: str, ref_id: str = None):
 	"""
-	Validate Tata Tele API connection and credentials.
+	Hangup an ongoing Smartflo call.
+
+	Args:
+		call_id (str): Smartflo provider call_id (mandatory)
+		ref_id (str): Our CRM ref_id (optional, used to update call log)
+
+	Returns:
+		JSON response for frontend
 	"""
+
 	if not is_integration_enabled():
-		return {"ok": False, "message": "Integration not enabled"}
+		frappe.throw(_("Integration not enabled"), title=_("Not Enabled"))
+
+	if not call_id:
+		frappe.throw(_("call_id is required"), title=_("Invalid Input"))
 
 	settings = TataTeleSettings.get_settings()
 	if not settings:
-		return {"ok": False, "message": "Settings not configured"}
+		frappe.throw(_("Tata Tele Settings not configured"))
+
+	api_token = settings.get_password("api_token")
+
+	url = "https://api-smartflo.tatateleservices.com/v1/call/hangup"
+
+	headers = {
+		"Authorization": f"Bearer {api_token}",
+		"Content-Type": "application/json",
+		"Accept": "application/json",
+	}
+
+	payload = {
+		"call_id": call_id
+	}
 
 	try:
-		api_endpoint = settings.api_endpoint
-		api_token = settings.get_password("api_token")
+		resp = requests.post(url, json=payload, headers=headers, timeout=30)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), "Smartflo Hangup API Error")
+		frappe.throw(_("Failed to connect to Tata Tele API"))
 
-		headers = {
-			"Authorization": f"Bearer {api_token}",
-			"Content-Type": "application/json",
-		}
+	if resp.status_code not in (200, 201):
+		frappe.throw(_("Hangup failed: {0}").format(resp.text))
 
-		# Try a simple health check - test the endpoint
-		# You might need to adjust this based on Tata Tele API documentation
-		response = requests.get(
-			api_endpoint.replace("/click_to_call", "/health"),
-			headers=headers,
-			timeout=10
-		)
+	data = resp.json() if resp.text else {}
 
-		if response.status_code in [200, 401, 403]:  # 401/403 means auth issue, not connection
-			return {
-				"ok": True,
-				"message": "Connection successful"
-			}
-		else:
-			return {
-				"ok": False,
-				"message": f"Connection failed: {response.status_code}"
-			}
+	# 🔄 Update CRM Call Log if ref_id provided
+	if ref_id:
+		name = frappe.db.get_value("CRM Call Log", {"id": ref_id}, "name")
+		if name:
+			frappe.db.set_value("CRM Call Log", name, {
+				"status": "Cancelled",
+				"end_time": frappe.utils.now_datetime()
+			})
+			frappe.db.commit()
+			
+			# Publish real-time update
+			frappe.publish_realtime("tata_tele_call", {
+				"ref_id": ref_id,
+				"status": "Cancelled",
+				"call_id": call_id,
+			})
 
-	except Exception as e:
-		return {
-			"ok": False,
-			"message": f"Error: {str(e)}"
-		}
+	return {
+		"success": True,
+		"message": "Call hangup request sent successfully",
+		"call_id": call_id,
+		"provider_response": data
+	}
+

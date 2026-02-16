@@ -1,3 +1,6 @@
+import json
+import re
+
 import frappe
 from frappe import _
 
@@ -22,13 +25,14 @@ def send_welcome_message_to_lead_hook(doc, method):
 	if not settings.enabled or not settings.send_welcome_on_lead_create:
 		return
 	
-	# Send welcome message in background
-	frappe.enqueue(
-		"crm.integrations.interakt.api.send_welcome_message_to_lead",
-		queue="default",
-		timeout=300,
-		lead_name=doc.name,
-	)
+	# Send welcome message directly (not enqueued to avoid job queue issues)
+	try:
+		send_welcome_message_to_lead(doc.name)
+	except Exception as e:
+		frappe.log_error(
+			title="Error in welcome message hook",
+			message=f"Lead: {doc.name}\nError: {str(e)}"
+		)
 
 
 @frappe.whitelist()
@@ -40,7 +44,7 @@ def is_enabled():
 @frappe.whitelist()
 def send_welcome_message_to_lead(lead_name):
 	"""
-	Send welcome message to a lead using the seller_registration template.
+	Send welcome message to a lead using template from settings.
 	This is called when a new lead is created.
 	
 	:param lead_name: Name of the CRM Lead document
@@ -65,17 +69,25 @@ def send_welcome_message_to_lead(lead_name):
 			phone_number, interakt.default_country_code
 		)
 
+		# Get template settings from CRM Interakt Settings
+		settings = frappe.get_single("CRM Interakt Settings")
+		welcome_template = getattr(settings, "welcome_template_name", None) or "seller_registration"
+		welcome_header_url = getattr(settings, "welcome_header_url", None) or ""
+		welcome_header_filename = getattr(settings, "welcome_header_filename", None) or ""
+
+		# Build header_values and file_name only if configured
+		header_values = [welcome_header_url] if welcome_header_url else None
+		file_name = welcome_header_filename if welcome_header_filename else None
+
 		# Send template message
 		result = interakt.send_template_message(
 			phone_number=clean_phone,
 			country_code=country_code,
-			template_name="seller_registration",
+			template_name=welcome_template,
 			language_code="en",
-			header_values=[
-				"https://interaktprodmediastorage.blob.core.windows.net/mediaprodstoragecontainer/d4929d4d-7b6d-4044-b878-c3507ed788ba/message_template_sample/mmJTLZbwxohY/Ipshopy_Policies.pdf?se=2031-01-02T06%3A22%3A29Z&sp=rt&sv=2019-12-12&sr=b&sig=FJ0E76FRRDN9AYvS/Y8r7vsADDfb4lYiTHe4Y5YL0eY%3D"
-			],
+			header_values=header_values,
 			body_values=[full_name],
-			file_name="Ipshopy_Policies.pdf",
+			file_name=file_name,
 			callback_data=f"lead_welcome_{lead_name}",
 		)
 
@@ -85,13 +97,19 @@ def send_welcome_message_to_lead(lead_name):
 				message_id=result.get("message_id"),
 				phone_number=clean_phone,
 				country_code=country_code,
-				template_name="seller_registration",
+				template_name=welcome_template,
 				template_language="en",
 				reference_doctype="CRM Lead",
 				reference_docname=lead_name,
 				sent_by=frappe.session.user,
 				status="Sent",
 			)
+
+			# Publish real-time event
+			frappe.publish_realtime("whatsapp_message", {
+				"reference_doctype": "CRM Lead",
+				"reference_name": lead_name,
+			})
 
 		return result
 
@@ -134,8 +152,6 @@ def send_template_message(
 		frappe.throw(_("Interakt is not enabled"))
 
 	# Parse JSON strings
-	import json
-
 	if isinstance(header_values, str):
 		header_values = json.loads(header_values) if header_values else None
 	if isinstance(body_values, str):
@@ -174,6 +190,12 @@ def send_template_message(
 			sent_by=frappe.session.user,
 			status="Sent",
 		)
+
+		# Publish real-time event
+		frappe.publish_realtime("whatsapp_message", {
+			"reference_doctype": reference_doctype,
+			"reference_name": reference_docname,
+		})
 
 	return result
 
@@ -289,15 +311,25 @@ def get_whatsapp_messages(reference_doctype, reference_docname):
 			"creation": msg.creation,
 			"reference_doctype": reference_doctype,
 			"reference_name": reference_docname,
-			"is_reply": False,  # TODO: Implement reply functionality
+			"is_reply": False,
 			"reply_to_message_id": None,
 		}
 		
 		# Add template details if it's a template message
 		if msg.template_name:
 			formatted_msg["template_name"] = msg.template_name
-			formatted_msg["header"] = ""  # TODO: Extract from template
-			formatted_msg["footer"] = ""  # TODO: Extract from template
+			# Look up full template body from WhatsApp Templates for hover preview
+			tpl_body = ""
+			tpl_header = ""
+			tpl_footer = ""
+			if frappe.db.exists("WhatsApp Templates", msg.template_name):
+				tpl = frappe.get_doc("WhatsApp Templates", msg.template_name)
+				tpl_body = tpl.body_text or tpl.template or ""
+				tpl_header = tpl.header_text or ""
+				tpl_footer = tpl.footer or ""
+			formatted_msg["template_body"] = tpl_body
+			formatted_msg["header"] = tpl_header
+			formatted_msg["footer"] = tpl_footer
 		
 		formatted_messages.append(formatted_msg)
 
@@ -365,4 +397,205 @@ def send_text_message_to_lead(
 			message_content=message_text,
 		)
 
+		# Publish real-time event
+		frappe.publish_realtime("whatsapp_message", {
+			"reference_doctype": reference_doctype,
+			"reference_name": reference_docname,
+		})
+
 	return result
+
+
+@frappe.whitelist()
+def fetch_interakt_templates(offset=0, autosubmitted_for="all", language="all"):
+	"""
+	Fetch WhatsApp templates from Interakt API and return raw data.
+	"""
+	interakt = Interakt.connect()
+	if not interakt:
+		frappe.throw(_("Interakt is not enabled"))
+
+	result = interakt.get_templates(
+		offset=int(offset),
+		autosubmitted_for=autosubmitted_for,
+		language=language,
+	)
+
+	# Log raw JSON response to console
+	print("="*80)
+	print("[INTERAKT FETCH TEMPLATES] Raw API Response:")
+	print(json.dumps(result, indent=2, default=str))
+	print("="*80)
+	frappe.logger().info(f"[INTERAKT FETCH TEMPLATES] Response: {json.dumps(result, indent=2, default=str)}")
+
+	if not result.get("success"):
+		return {
+			"success": False,
+			"error": result.get("error", "Failed to fetch templates"),
+			"templates": [],
+		}
+
+	# Extract actual template list from nested response
+	templates = _extract_templates_from_response(result)
+	return {
+		"success": True,
+		"templates": templates,
+		"count": len(templates),
+	}
+
+
+def _extract_templates_from_response(result):
+	"""
+	Extract the actual template list from Interakt's nested response.
+	Interakt returns: {templates: [{count: N, results: {templates: [...]}}]}
+	"""
+	raw_templates = result.get("templates", [])
+
+	# Case 1: Nested structure — templates[0].results.templates
+	if (
+		raw_templates
+		and isinstance(raw_templates, list)
+		and len(raw_templates) > 0
+		and isinstance(raw_templates[0], dict)
+		and "results" in raw_templates[0]
+	):
+		inner = raw_templates[0].get("results", {})
+		if isinstance(inner, dict) and "templates" in inner:
+			return inner["templates"]
+
+	# Case 2: Flat list of template dicts
+	if raw_templates and isinstance(raw_templates, list) and isinstance(raw_templates[0], dict) and "name" in raw_templates[0]:
+		return raw_templates
+
+	return []
+
+
+def _count_body_variables(body_text):
+	"""Count the number of {{n}} variables in a template body."""
+	if not body_text:
+		return 0
+	matches = re.findall(r"\{\{(\d+)\}\}", body_text)
+	return max([int(m) for m in matches]) if matches else 0
+
+
+def _normalize_buttons(buttons_raw):
+	"""Normalize the buttons field from Interakt to a clean JSON string."""
+	if not buttons_raw:
+		return None
+	# Interakt returns buttons as a JSON-encoded string sometimes double-escaped
+	if isinstance(buttons_raw, str):
+		try:
+			parsed = json.loads(buttons_raw)
+			# If the result is still a string, try parsing again (double-encoded)
+			if isinstance(parsed, str):
+				parsed = json.loads(parsed)
+			return json.dumps(parsed)
+		except (json.JSONDecodeError, TypeError):
+			return buttons_raw
+	return json.dumps(buttons_raw)
+
+
+@frappe.whitelist()
+def sync_interakt_templates():
+	"""
+	Sync WhatsApp templates from Interakt to local WhatsApp Templates doctype.
+	Fetches all templates and upserts them locally.
+	"""
+	interakt = Interakt.connect()
+	if not interakt:
+		frappe.throw(_("Interakt is not enabled"))
+
+	result = interakt.get_templates()
+
+	# Log raw JSON response to console
+	print("="*80)
+	print("[INTERAKT SYNC TEMPLATES] Raw API Response:")
+	print(json.dumps(result, indent=2, default=str))
+	print("="*80)
+	frappe.logger().info(f"[INTERAKT SYNC TEMPLATES] Response: {json.dumps(result, indent=2, default=str)}")
+
+	if not result.get("success"):
+		return {
+			"success": False,
+			"error": result.get("error", "Failed to fetch templates from Interakt"),
+		}
+
+	# Extract actual template list from nested response
+	templates = _extract_templates_from_response(result)
+	print(f"[INTERAKT SYNC] Extracted {len(templates)} templates to sync")
+	synced = 0
+	errors = []
+
+	for tpl in templates:
+		try:
+			template_name = tpl.get("name") or tpl.get("display_name")
+			if not template_name:
+				continue
+
+			body_text = tpl.get("body") or ""
+			variable_count = _count_body_variables(body_text)
+			buttons_json = _normalize_buttons(tpl.get("buttons"))
+
+			# Map Interakt approval_status to local status
+			approval_status = tpl.get("approval_status", "")
+			status_map = {
+				"APPROVED": "APPROVED",
+				"PENDING": "PENDING",
+				"REJECTED": "REJECTED",
+			}
+			local_status = status_map.get(approval_status, approval_status or "PENDING")
+
+			# Map header_format
+			header_format = tpl.get("header_format") or ""
+			if header_format and header_format.upper() in ("TEXT", "IMAGE", "DOCUMENT", "VIDEO"):
+				header_format = header_format.upper()
+			else:
+				header_format = ""
+
+			values = {
+				"status": local_status,
+				"category": tpl.get("category") or "",
+				"language_code": tpl.get("language") or "en",
+				"template": body_text,
+				"body_text": body_text,
+				"footer": tpl.get("footer") or "",
+				"header_text": tpl.get("header") or "",
+				"header_type": header_format or "",
+				"header_format": header_format,
+				"interakt_template_id": tpl.get("id") or "",
+				"buttons": buttons_json or "",
+				"variable_count": variable_count,
+				"last_synced": frappe.utils.now(),
+			}
+
+			if frappe.db.exists("WhatsApp Templates", template_name):
+				doc = frappe.get_doc("WhatsApp Templates", template_name)
+				doc.update(values)
+				doc.save(ignore_permissions=True)
+			else:
+				doc = frappe.get_doc({
+					"doctype": "WhatsApp Templates",
+					"template_name": template_name,
+					**values,
+				})
+				doc.insert(ignore_permissions=True)
+
+			synced += 1
+
+		except Exception as e:
+			tpl_name = tpl.get("name", "unknown")
+			frappe.log_error(
+				title=f"Error syncing template: {tpl_name}",
+				message=str(e),
+			)
+			errors.append(f"{tpl_name}: {str(e)}")
+
+	frappe.db.commit()
+
+	return {
+		"success": True,
+		"synced": synced,
+		"total": len(templates),
+		"errors": errors,
+	}
+

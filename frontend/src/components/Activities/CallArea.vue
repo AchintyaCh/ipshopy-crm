@@ -25,7 +25,7 @@
       </div>
     </div>
     <div
-      @click="showCallLogDetailModal = true"
+      @click="openCallLogDetail()"
       class="flex flex-col gap-2 border cursor-pointer border-outline-gray-modals rounded-md bg-surface-cards px-3 py-2.5 text-ink-gray-9"
     >
       <div class="flex items-center justify-between">
@@ -126,8 +126,16 @@ const callLog = createResource({
   url: 'crm.fcrm.doctype.crm_call_log.crm_call_log.get_call_log',
   params: { name: props.activity.name },
   cache: ['call_log', props.activity.name],
-  auto: true,
+  auto: false,
 })
+
+function openCallLogDetail() {
+  showCallLogDetailModal.value = true
+  if (!callLog.data) {
+    callLog.fetch()
+  }
+}
+
 const showCallLogDetailModal = ref(false)
 const showCallLogModal = ref(false)
 </script>

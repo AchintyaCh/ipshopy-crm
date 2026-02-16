@@ -18,6 +18,7 @@
     "frappe-ui": "0.1.248",
     "gemoji": "^8.1.0",
     "lodash": "^4.17.21",
+    "lucide-vue-next": "^0.564.0",
     "mime": "^4.0.1",
     "pinia": "^2.0.33",
     "socket.io-client": "^4.7.2",

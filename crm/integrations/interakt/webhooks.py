@@ -123,35 +123,20 @@ def handle_message_received(webhook_data):
 			"reference_docname": reference_docname,
 		})
 		
-		# Send real-time update immediately (UI First)
-		message_data = doc.as_dict()
-		message_data.update({
-			"type": doc.direction,
-			"message": message_text,
-			"creation": frappe.utils.now(),
-			"from_name": customer.get("traits", {}).get("name"),
-			# Critical fields for frontend rendering
-			"content_type": "text" if not media_url else "image",  # Simplified for now
-			"message_type": "Text", # Webhook generally sends text/media, not templates usually?
-			"to": f"{doc.country_code}{doc.phone_number}",
-			"from": f"{doc.country_code}{doc.phone_number}",
-			"status": doc.status.lower(),
-		})
+		doc.insert(ignore_permissions=True)
+		frappe.db.commit()
 		
-		frappe.logger().info(f"Publishing Realtime Event: {message_data}") # Debug log
+		frappe.logger().info(f"Incoming message saved: {doc.name}")
+		
+		# Send real-time update AFTER insert+commit so the frontend can fetch the message
 		frappe.publish_realtime(
 			"whatsapp_message",
 			{
 				"reference_doctype": reference_doctype,
 				"reference_name": reference_docname,
-				"message_data": message_data
-			}
+			},
+			after_commit=True,
 		)
-		
-		doc.insert(ignore_permissions=True)
-		frappe.db.commit()
-		
-		frappe.logger().info(f"Incoming message saved: {doc.name}")
 		
 	except Exception as e:
 		frappe.log_error(

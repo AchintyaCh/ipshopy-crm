@@ -82,32 +82,18 @@ import ViewControls from '@/components/ViewControls.vue'
 import { getMeta } from '@/stores/meta'
 import { organizationsStore } from '@/stores/organizations.js'
 import { formatDate, timeAgo } from '@/utils'
-import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
-
-const route = useRoute()
+import { ref, computed } from 'vue'
 
 const { getFormattedPercent, getFormattedFloat, getFormattedCurrency } =
   getMeta('Contact')
 const { getOrganization } = organizationsStore()
 
+const route = useRoute()
+
 const showContactModal = ref(false)
 
 const contactsListView = ref(null)
-
-// Combine default filters with query parameter filters
-const combinedFilters = computed(() => {
-  const baseFilters = {};
-  
-  // Add user filter if present in route query
-  // For contacts, we can filter by linked documents owned by specific user
-  if (route.query.user) {
-    // For converted leads, we can't directly filter contacts by owner
-    // So we don't add a specific filter here, but the user context is maintained
-  }
-  
-  return baseFilters;
-});
 
 // contacts data is loaded in the ViewControls component
 const contacts = ref({})
@@ -115,6 +101,16 @@ const loadMore = ref(1)
 const triggerResize = ref(1)
 const updatedPageCount = ref(20)
 const viewControls = ref(null)
+
+// Combine default filters with query parameter filters
+const combinedFilters = computed(() => {
+  const baseFilters = {}
+  // For contacts, we support user filter from dashboard navigation
+  if (route.query.user) {
+    baseFilters.owner = route.query.user
+  }
+  return baseFilters
+})
 
 const rows = computed(() => {
   if (
